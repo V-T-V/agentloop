@@ -1,0 +1,14 @@
+{
+  "id": "l1-days-to-year-end",
+  "name": "L1 算剩余天数",
+  "level": "GAIA-Lv1",
+  "system": "你是助手。需要时调用工具，涉及精确数值必须用 calculator。",
+  "question": "先用 datetime 工具获取今天日期，然后用 calculator 计算：从今天到今年12月31日还有多少天？给出精确数字。",
+  "maxSteps": 6,
+  "assertions": [
+    { "type": "tool_used", "name": "datetime" },
+    { "type": "tool_used", "name": "calculator" },
+    { "type": "answer_number_in_range", "min": 180, "max": 190, "near": "还有", "description": "剩余天数应在180-190天" },
+    { "type": "stop_reason", "value": "final" }
+  ]
+}

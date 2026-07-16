@@ -1,0 +1,16 @@
+{
+  "id": "research-agentic-frameworks-2026",
+  "name": "2026年主流 Agent 框架深度调研",
+  "level": "L2",
+  "system": "你是一个严谨的技术研究助手。你可以使用 web_search 工具搜索信息。\n\n工作策略：\n1. 先用 web_search 搜索 \"AI agent framework 2025 2026 comparison\" 获取概览\n2. 再针对每个框架各搜一次（LangGraph、AutoGen、CrewAI）\n3. 搜索 3-4 次后，基于搜索结果直接整理报告\n4. 不要用 delegate_parallel（会超时），直接用 web_search\n5. 搜索够用就尽快输出最终报告，不要反复搜同一个内容",
+  "question": "请调研 2025-2026 年主流的 AI Agent 框架（LangGraph、AutoGen、CrewAI、OpenAI Agents SDK 等），回答：\n1. 每个框架的核心设计理念和主要特性（2-3句话概括）\n2. 架构关键区别（单agent vs 多agent、声明式 vs 命令式）\n3. 各自最适合的使用场景\n4. 哪个框架生态最成熟\n\n请搜索 3-4 次后直接输出结构化报告，报告中必须提到 LangGraph 和 AutoGen。",
+  "maxSteps": 20,
+  "assertions": [
+    { "type": "tool_used", "name": "web_search", "description": "必须使用搜索工具获取信息" },
+    { "type": "answer_contains", "value": "LangGraph", "description": "应提到 LangGraph" },
+    { "type": "answer_contains", "value": "AutoGen", "description": "应提到 AutoGen" },
+    { "type": "answer_contains", "value": "CrewAI", "description": "应提到 CrewAI" },
+    { "type": "steps_at_most", "max": 20, "description": "步数控制" },
+    { "type": "stop_reason", "value": "final", "description": "应正常收敛给出报告" }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "l3-collatz-peak",
+  "name": "L3 Collatz 峰值分析",
+  "level": "GAIA-Lv3",
+  "system": "你是研究助手。需要时调用工具，涉及迭代计算用 iterate。",
+  "question": "用 iterate 工具验证 n=6, 27, 97 三个数的 Collatz 序列（stepOdd=\"3*x+1\", stepEven=\"x/2\", stopWhen={equals:1}），找出每个序列的最大值，汇总成表格并指出 n=27 和 n=97 的峰值是否相同。",
+  "maxSteps": 12,
+  "assertions": [
+    { "type": "tool_used", "name": "iterate", "description": "必须用 iterate 工具（而非 calculator 逐步算）" },
+    { "type": "answer_contains", "value": "9232", "description": "应发现 n=27/97 的峰值 9232" },
+    { "type": "answer_regex", "value": "\\|", "description": "应有表格结构（含 | 分隔符）" },
+    { "type": "steps_at_most", "max": 12, "description": "步数不应超限" },
+    { "type": "stop_reason", "value": "final", "description": "应正常收敛而非 max_steps" }
+  ]
+}

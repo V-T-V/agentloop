@@ -1,0 +1,42 @@
+{
+  "id": "deep-research-8h",
+  "name": "AI Agent 框架全景深度研究（8h 级任务）",
+  "description": "多阶段深度研究：广度调研 → 技术对比 → 生态分析 → 趋势预测 → 综合报告。考验 checkpoint/budget/搜索/记忆 全栈协同。",
+  "phases": [
+    {
+      "name": "p1-broad-survey",
+      "system": "你是技术研究助手。用 web_search 搜索信息，用 memory_store 保存关键事实。\n策略：搜索 3-4 次不同关键词，每次把关键发现存入 memory_store，最后汇总。",
+      "prompt": "请调研 2025-2026 年 AI Agent 框架的**整体格局**：\n1. 当前有哪些主流框架（列出至少 5 个）\n2. 每个框架的一句话定位\n3. 行业整体发展趋势\n\n用 web_search 搜索 2-3 次，把关键发现用 memory_store 保存，最后输出 200-400 字调研笔记。",
+      "maxSteps": 15,
+      "timeoutMs": 180000
+    },
+    {
+      "name": "p2-tech-comparison",
+      "system": "你是技术分析助手。先 recall 之前的记忆，再补充搜索，做深度对比。",
+      "prompt": "基于上一阶段的调研：\n\n{{prevOutput}}\n\n请深入对比 LangGraph、AutoGen、CrewAI 三个框架：\n1. 架构模式（图/对话/角色）\n2. 状态管理方式\n3. 控制流灵活性\n\n先 recall 已有记忆，再搜索补充，输出结构化对比（含表格），300-500 字。",
+      "maxSteps": 15,
+      "timeoutMs": 180000
+    },
+    {
+      "name": "p3-ecosystem-analysis",
+      "system": "你是生态分析助手。分析框架的社区、文档、工具链成熟度。",
+      "prompt": "基于前序研究：\n\n{{prevOutput}}\n\n请分析各框架的**生态成熟度**：\n1. GitHub 活跃度（stars/贡献者/issue 响应）\n2. 文档与教程质量\n3. 第三方集成数量\n4. 企业采用情况\n\n搜索验证关键数据，输出生态评分表，300-500 字。",
+      "maxSteps": 12,
+      "timeoutMs": 180000
+    },
+    {
+      "name": "p4-trend-forecast",
+      "system": "你是技术趋势分析师。基于已有研究预测未来方向。",
+      "prompt": "基于前序全部研究：\n\n{{prevOutput}}\n\n请预测 AI Agent 框架的**未来趋势**（2026-2027）：\n1. 技术演进方向（如 MCP 标准化、多模态、长程记忆）\n2. 市场格局变化\n3. 新兴框架或范式\n\n基于搜索和已有知识，输出趋势分析，200-400 字。",
+      "maxSteps": 10,
+      "timeoutMs": 180000
+    },
+    {
+      "name": "p5-final-report",
+      "system": "你是技术报告撰写专家。把前序研究整合成专业报告。",
+      "prompt": "基于前四个阶段的全部研究：\n\n{{prevOutput}}\n\n请撰写一份完整的**AI Agent 框架研究报告**，含：\n1. 摘要（100字内）\n2. 框架格局概览\n3. 技术对比表\n4. 生态成熟度评分\n5. 未来趋势\n6. 选型建议\n\n报告应专业、结构清晰，500-800 字。",
+      "maxSteps": 8,
+      "timeoutMs": 180000
+    }
+  ]
+}

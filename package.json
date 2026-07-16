@@ -1,0 +1,31 @@
+{
+  "name": "agentloop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Agent Loop —— 把 LLM 与工具调用的循环做到最干净、最可读的独立基座（单线程主循环 + 原生 tool-calling）。",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "cli": "tsx src/cli.ts",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{ts,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,md}\"",
+    "test": "node --test --import tsx \"test/**/*.test.ts\"",
+    "test:watch": "node --test --watch --import tsx \"test/**/*.test.ts\"",
+    "product:check": "node scripts/product-check.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^22.10.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "prettier": "^3.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "~5.9.0",
+    "typescript-eslint": "^8.0.0"
+  }
+}

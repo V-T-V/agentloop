@@ -1,0 +1,14 @@
+{
+  "id": "eval-15-coding-tools",
+  "name": "2026 AI编程工具全景评测",
+  "description": "评测15款AI编程工具，分三个维度：\n\n【AI代码编辑器】(5款): Cursor, Windsurf, Zed AI, VS Code Copilot, JetBrains AI Assistant\n【AI Agent平台】(5款): Claude Code, GitHub Copilot Workspace, Devin, Amazon Q Developer, Google Code Assist\n【开源/本地方案】(5款): Continue.dev, Aider, Cline, OpenHands, Goose\n\n每款工具评测：核心功能、定价模型、技术架构（模型/上下文窗口）、适用场景、优缺点、社区活跃度。",
+  "doneCondition": "15款工具的评测卡片全部产出，每张含6个维度，最后汇总成对比报告+推荐矩阵。",
+  "plannerPrompt": "把以下评测任务拆成15个子任务，每个工具一个子任务。按三个类别顺序排列。{{description}}",
+  "workerSystem": "你是AI工具评测专家。用 web_search 搜索工具的最新信息（定价、功能、更新），用 memory_store 保存关键数据（特别是定价和模型信息）。对每款工具输出结构化评测卡片，包含：\n1. 核心功能（2-3句）\n2. 定价（免费/付费/企业）\n3. 技术架构（底层模型、上下文窗口）\n4. 适用场景\n5. 优点\n6. 缺点\n保持每张卡片200-300字。",
+  "workerMaxSteps": 8,
+  "parallelism": 3,
+  "finalizerPrompt": "把15款工具的评测卡片汇总成一份《2026 AI编程工具全景评测报告》，包含：\n1. 市场格局概览（三维度分析）\n2. 对比矩阵表（功能/定价/模型/推荐场景）\n3. 选型推荐（不同需求的用户该选哪个）\n4. 趋势洞察\n保持专业、客观、有数据支撑。",
+  "budget": {
+    "maxTotalTokens": 8000000
+  }
+}

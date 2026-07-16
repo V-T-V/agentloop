@@ -1,0 +1,17 @@
+{
+  "id": "verify-test-6",
+  "name": "校验测试：6个编程语言简介×双层校验",
+  "description": "为以下6种编程语言各写一段简介：Python, JavaScript, Rust, Go, TypeScript, Swift。\n\n每段简介必须包含：语言诞生年份、主要范式、典型应用领域。",
+  "doneCondition": "6段简介全部产出，每段都包含年份+范式+应用领域，且长度≥80字。",
+  "plannerPrompt": "拆成6个子任务，每种语言一个。{{description}}",
+  "workerSystem": "你是技术写作助手。为指定编程语言写一段详细简介（至少150字），包含：诞生年份、主要范式、典型应用领域。内容要具体、有信息量。不要简短回答。",
+  "workerMaxSteps": 4,
+  "parallelism": 3,
+  "assertions": [
+    { "type": "answer_length", "min": 100, "description": "简介长度至少100字符" }
+  ],
+  "judge": true,
+  "judgeThreshold": 60,
+  "maxRetries": 1,
+  "finalizerPrompt": "把6段简介汇总成一张编程语言速查表。"
+}

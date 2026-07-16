@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Windows 保留设备名误生成的垃圾文件
+nul
+NUL
+
+# Agent 运行时产物（检查点、会话、长任务结果）——含运行状态，不入库
+.agentloop/

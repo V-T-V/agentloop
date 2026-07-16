@@ -1,0 +1,28 @@
+{
+  "id": "deep-research-quantum-2026",
+  "name": "量子计算纠错码深度研究",
+  "description": "多阶段深度研究：调研 → 分析 → 撰写报告。验证 long-task runner 的阶段编排 + checkpoint 落盘。",
+  "phases": [
+    {
+      "name": "phase1-research",
+      "system": "你是一个严谨的科研助手。先尝试用 web_search 搜索，若网络不可达则基于已有知识回答，并在开头注明「基于已有知识」。",
+      "prompt": "请调研量子纠错码（Quantum Error Correction）的基础：\n1. 什么是量子纠错码？为什么需要它？\n2. 主要方案（Shor码、Steane码、Surface码）的核心思想\n3. 当前关键挑战\n\n请整理成结构化调研笔记，200-400字。",
+      "maxSteps": 8,
+      "timeoutMs": 120000
+    },
+    {
+      "name": "phase2-analysis",
+      "system": "你是一个科研分析助手。基于上一阶段调研做对比分析。基于已有知识即可，无需搜索。",
+      "prompt": "基于上一阶段的调研笔记：\n\n{{prevOutput}}\n\n请对比分析主流量子纠错码方案：\n1. 各方案纠错能力与物理量子比特开销\n2. 实现难度与实验进展\n3. 哪种近期最实用\n\n输出结构化分析，200-400字。",
+      "maxSteps": 8,
+      "timeoutMs": 120000
+    },
+    {
+      "name": "phase3-report",
+      "system": "你是技术报告撰写专家。把前序研究整合成结构清晰的报告。",
+      "prompt": "基于前两个阶段的研究：\n\n{{prevOutput}}\n\n请撰写一份简明研究报告，含：摘要、背景、方案对比表、进展与挑战、展望。控制在 300-500 字。",
+      "maxSteps": 6,
+      "timeoutMs": 120000
+    }
+  ]
+}

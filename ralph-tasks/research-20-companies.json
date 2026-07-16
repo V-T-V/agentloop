@@ -1,0 +1,14 @@
+{
+  "id": "research-20-ai-companies",
+  "name": "调研20家AI公司的Agent产品矩阵",
+  "description": "逐个调研以下20家AI公司的Agent/LLM相关产品和定位，每家公司产出一份简明卡片（产品名、定位、技术栈、目标用户、亮点）。\n\n公司列表：OpenAI, Anthropic, Google DeepMind, Meta AI, Microsoft, Amazon, NVIDIA, Cohere, Mistral AI, IBM, Apple, xAI, Salesforce, ServiceNow, Databricks, Snowflake, Hugging Face, Stability AI, Perplexity, Inflection AI",
+  "doneCondition": "全部20家公司的产品卡片都已产出，且每张卡片包含：公司名、主要Agent/LLM产品、技术定位、目标用户、核心亮点。最后汇总成对比报告。",
+  "plannerPrompt": "请把以下大任务拆成 20 个子任务，每家公司一个。{{description}}",
+  "workerSystem": "你是AI行业研究助手。用 web_search 搜索公司的最新信息，用 memory_store 保存关键发现。对每家公司输出结构化产品卡片。",
+  "workerMaxSteps": 10,
+  "parallelism": 3,
+  "finalizerPrompt": "请把20家公司的产品卡片汇总成一份「AI Agent 产品矩阵对比报告」，包含：1）市场格局概览 2）分类对比表 3）趋势洞察。保持简明专业。",
+  "budget": {
+    "maxTotalTokens": 5000000
+  }
+}

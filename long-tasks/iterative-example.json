@@ -1,0 +1,14 @@
+{
+  "id": "iterative-writing-opt",
+  "name": "迭代优化技术文案（Karpathy Loop）",
+  "description": "让 agent 反复编辑一段技术文案，每次尝试让它更长更详尽（模拟 autoresearch 的 edit→run→observe→keep best 循环）。",
+  "system": "你是一个技术文案优化专家。每次收到一段文案，你会增加更多细节、示例和解释，让内容更丰富、更有深度。只输出改进后的完整文案，不要解释你做了什么。",
+  "initialArtifact": "AI Agent 是一种能自主调用工具、循环推理的 AI 系统。",
+  "metric": {
+    "expr": "artifact.length",
+    "target": 500,
+    "maximize": true
+  },
+  "maxIterations": 5,
+  "stepsPerIteration": 3
+}
