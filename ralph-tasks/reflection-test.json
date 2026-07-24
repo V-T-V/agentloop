@@ -1,0 +1,20 @@
+{
+  "id": "reflection-test-4",
+  "name": "Reflection Loop效果验证：4种编程语言简介",
+  "description": "为以下4种编程语言各写一段详细简介：Python, Rust, Go, Swift。\n每段简介必须包含：诞生年份、主要范式、典型应用领域、社区生态。至少200字。",
+  "doneCondition": "4段简介全部产出，每段至少200字，含4个维度。",
+  "plannerPrompt": "拆成4个子任务，每种语言一个。{{description}}",
+  "workerSystem": "你是技术写作助手。为指定编程语言写一段详细简介。包含：诞生年份、主要范式、典型应用领域、社区生态。至少200字。",
+  "workerMaxSteps": 4,
+  "parallelism": 2,
+  "reflection": {
+    "enabled": true,
+    "maxRevisions": 2,
+    "minSeverityToRevise": "medium"
+  },
+  "assertions": [
+    { "type": "answer_length", "min": 150, "description": "简介至少150字符" }
+  ],
+  "maxRetries": 1,
+  "finalizerPrompt": "把4段简介汇总成速查表。"
+}

@@ -33,13 +33,8 @@ import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { CheckpointStore } from './checkpoint.ts';
-import { loadEnv } from './env.ts';
-import { createLLM } from './llm.ts';
 import { runLoop } from './loop.ts';
-import { makeSubAgentTools, type SubAgentDeps } from './subagent.ts';
-import { loadAllTools, registerCleanup } from './tools/load-all.ts';
-import { loadBudgetConfig } from './budget.ts';
-import type { AnyToolDef, ApprovalDecision, ApprovalRequest, ToolDef } from './types.ts';
+import { prepareRuntime } from './runtime.ts';
 
 /** 单个阶段的定义 */
 export interface PhaseSpec {
@@ -224,16 +219,9 @@ export class TimeoutError extends Error {
 }
 
 async function runLongTask(spec: LongTaskSpec, fresh: boolean): Promise<void> {
-  loadEnv();
-  const llm = createLLM();
-  const onApproval = async (_req: ApprovalRequest): Promise<ApprovalDecision> => ({ approved: true });
-  // A1: 统一加载工具（内置 + MCP）
-  const { tools: loadedTools, closeAll } = await loadAllTools();
-  registerCleanup(closeAll);
-  const deps: SubAgentDeps = { llm, tools: loadedTools as ToolDef[], system: '', onApproval };
-  const tools: AnyToolDef[] = [...loadedTools, ...makeSubAgentTools(deps)];
-  // A2: 成本预算
-  const budget = loadBudgetConfig() ?? undefined;
+  // H7: 复用共享运行时抽象（M2 完成——消除与 ralph-loop 的初始化重复）
+  const { llm, tools, onApproval, budgetConfig: envBudget } = await prepareRuntime('');
+  const budget = envBudget ?? undefined;
 
   const store = new CheckpointStore();
   const resultsDir = taskResultsDir(spec.id);
@@ -481,13 +469,8 @@ export function scoreArtifact(expr: string, artifact: string): number {
  * 达到 target 或耗尽 maxIterations 则停止。
  */
 export async function runIterativeLoop(spec: IterativeTaskSpec): Promise<void> {
-  loadEnv();
-  const llm = createLLM();
-  const onApproval = async (_req: ApprovalRequest): Promise<ApprovalDecision> => ({ approved: true });
-  const { tools: loadedTools, closeAll } = await loadAllTools();
-  registerCleanup(closeAll);
-  const deps: SubAgentDeps = { llm, tools: loadedTools as ToolDef[], system: spec.system, onApproval };
-  const tools: AnyToolDef[] = [...loadedTools, ...makeSubAgentTools(deps)];
+  // H7: 复用共享运行时
+  const { llm, tools } = await prepareRuntime(spec.system);
 
   const resultsDir = taskResultsDir(spec.id);
   await mkdir(resultsDir, { recursive: true });

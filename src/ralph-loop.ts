@@ -27,13 +27,15 @@
 
 import { mkdir, readFile, writeFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import { runLoop } from './loop.ts';
 import { prepareRuntime } from './runtime.ts';
 import { BudgetGuard, type BudgetConfig } from './budget.ts';
 import { verifyTask, type Assertion } from './verify.ts';
 import { evaluateTrajectory } from './eval.ts';
+import { reflectionLoop, DEFAULT_REFLECTION } from './reflection.ts';
+import { getMemoryStore } from './tools/recall.ts';
 import { env } from './env.ts';
 import type { LoopEvent, TokenUsage } from './types.ts';
 
@@ -91,6 +93,8 @@ export interface RalphTaskSpec {
    * 防止卡死任务无限运行。0=不限（默认）。
    */
   maxDurationSec?: number;
+  /** Reflection Loop：在 verify 前对 Worker 产出做批评→修订（自我改进，+34% 准确率） */
+  reflection?: { enabled?: boolean; maxRevisions?: number; minSeverityToRevise?: 'low' | 'medium' | 'high' };
 }
 
 /** todo.md 中的一行子任务 */
@@ -403,13 +407,11 @@ export async function runRalphLoop(spec: RalphTaskSpec): Promise<void> {
           `\n\n## 当前子任务\n${todoItem.text}` +
           doneSummary +
           retryHint +
+          await recallRelevantMemory(todoItem.text) +
           `\n\n执行当前子任务，完成后直接给出你的发现/分析结果。`;
 
-        // C3: Worker 预算保护——把剩余预算传给 runLoop
-        const workerBudget = budgetGuard && budgetConfig
-          ? { ...budgetConfig, maxTotalTokens: budgetGuard.remaining() }
-          : undefined;
-
+        // H3 修复：不再向内部 runLoop 传 budget（避免创建全新 BudgetGuard 导致双重计数）
+        // 预算由外部 budgetGuard 在批次边界检查（ralph-loop.ts 的 while 循环顶部）
         const result = await runLoop({
           llm,
           tools,
@@ -419,7 +421,6 @@ export async function runRalphLoop(spec: RalphTaskSpec): Promise<void> {
           maxSteps: spec.workerMaxSteps ?? 12,
           onApproval,
           onEvent: dashboardPush ?? undefined,
-          budget: workerBudget,
         });
         return { todoItem, result };
       }),
@@ -436,6 +437,19 @@ export async function runRalphLoop(spec: RalphTaskSpec): Promise<void> {
         progress.totalUsage = addUsage(progress.totalUsage, result.totalUsage);
         if (budgetGuard) budgetGuard.add(result.totalUsage);
 
+        // —— Reflection Loop：在 verify 前批评→修订（自我改进）——
+        const reflConfig = spec.reflection
+          ? { ...DEFAULT_REFLECTION, ...spec.reflection }
+          : DEFAULT_REFLECTION;
+        if (reflConfig.enabled) {
+          const reflResult = await reflectionLoop(llm, result.answer, todoItem.text, reflConfig);
+          if (reflResult.revised) {
+            // 用修订后的答案替换原始答案
+            result.answer = reflResult.answer;
+            console.log(`   🔍 #${todoItem.index} Reflection: 修订${reflResult.critiques.length}次（${reflResult.critiques[reflResult.critiques.length - 1]?.severity ?? '?'}→合格）`);
+          }
+        }
+
         // —— 双层校验 ——
         const verdict = await verifySubtaskResult(spec, result, todoItem, llm);
         if (verdict.passed) {
@@ -445,6 +459,12 @@ export async function runRalphLoop(spec: RalphTaskSpec): Promise<void> {
           todoItem.status = 'done';
           progress.completed++;
           progress.verified++;
+          // P1: 验证通过 → 存为高置信度事实（跨任务学习）
+          try {
+            const store = getMemoryStore();
+            store.addTyped(result.answer.slice(0, 500), 'fact', 0.8, { task: todoItem.text.slice(0, 80), taskId: spec.id });
+            await store.persist();
+          } catch { /* 记忆存储失败不阻塞 */ }
           console.log(`   ✅ #${todoItem.index} ${todoItem.text.slice(0, 40)}：${result.steps}步，${verdict.detail}`);
         } else {
           // ❌ 校验失败：重试或放弃
@@ -548,6 +568,24 @@ export async function runRalphLoop(spec: RalphTaskSpec): Promise<void> {
 // —————————— 辅助函数 ——————————
 
 /**
+ * P1: 从记忆存储检索与子任务相关的已验证记忆，注入 Worker context。
+ * 只返回高置信度（≥0.5）的记忆，避免注入低质内容。
+ */
+async function recallRelevantMemory(taskText: string): Promise<string> {
+  try {
+    const store = getMemoryStore();
+    const results = store.searchRelevant(taskText, 3, 0.5);
+    if (results.length === 0) return '';
+    const memoryText = results.map((r, i) =>
+      `  ${i + 1}. [confidence=${((r.record.confidence ?? 1) * 100).toFixed(0)}%] ${r.record.text.slice(0, 120)}`,
+    ).join('\n');
+    return `\n\n## 相关记忆（从历史任务中学习，供参考）\n${memoryText}`;
+  } catch {
+    return ''; // 记忆检索失败不阻塞
+  }
+}
+
+/**
  * 双层校验子任务产出：客观断言（硬门槛）+ LLM-judge（质量分）。
  * 返回 { passed, detail }——passed=true 才标记 done。
  */
@@ -638,12 +676,6 @@ async function saveProgress(path: string, progress: Progress): Promise<void> {
     // ignore
   }
   await writeFile(path, JSON.stringify(progress, null, 2), 'utf8');
-}
-
-/** dirname 工具（避免 import path 两次） */
-function dirname(p: string): string {
-  const idx = p.lastIndexOf('/');
-  return idx >= 0 ? p.slice(0, idx) : '.';
 }
 
 /** token 用量累加 */

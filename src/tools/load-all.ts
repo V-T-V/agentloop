@@ -51,7 +51,8 @@ export async function loadAllTools(): Promise<LoadedTools> {
 
 /**
  * 注册进程退出时的 MCP 清理。
- * 在入口点调用一次即可。
+ * H2 修复：只注册 exit 事件——SIGINT/SIGTERM 由编排器（ralph-loop/long-task）负责，
+ * 它们会在优雅退出时调用 cleanup。避免与编排器的信号处理器冲突。
  */
 export function registerCleanup(closeAll: () => Promise<void>): void {
   let cleaned = false;
@@ -64,11 +65,6 @@ export function registerCleanup(closeAll: () => Promise<void>): void {
       // 退出时忽略错误
     }
   };
+  // H2: 只注册 exit——让编排器拥有 SIGINT/SIGTERM 的控制权
   process.on('exit', () => void cleanup());
-  process.on('SIGINT', () => {
-    void cleanup().then(() => process.exit(0));
-  });
-  process.on('SIGTERM', () => {
-    void cleanup().then(() => process.exit(0));
-  });
 }

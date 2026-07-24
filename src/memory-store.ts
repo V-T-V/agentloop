@@ -29,6 +29,10 @@ export interface MemoryRecord {
   metadata?: Record<string, unknown>;
   /** 创建时间（ISO） */
   createdAt: string;
+  /** P1: 置信度（0-1，由 verify 结果更新；高=验证通过的事实，低=未验证的猜测） */
+  confidence?: number;
+  /** P1: 记忆类型（fact=事实/skill=技能/lesson=经验教训/error=错误教训） */
+  type?: 'fact' | 'skill' | 'lesson' | 'error';
 }
 
 /** 搜索结果 */
@@ -108,36 +112,40 @@ export class MemoryStore {
     return join(this.dir, 'store.json');
   }
 
-  /** 从磁盘加载（若文件存在） */
+  /** 从磁盘加载（若文件存在）。M5: 校验 records 是数组 */
   async load(): Promise<void> {
     try {
       const raw = await readFile(this.path, 'utf8');
       const parsed = JSON.parse(raw) as PersistedStore;
       if (parsed.__schema !== SCHEMA_KEY) return;
-      // JSON 中 Map 变成普通对象，需还原
+      // M5: 防御：records 必须是数组，否则文件损坏 → 从空开始
+      if (!Array.isArray(parsed.records)) {
+        console.warn('[memory-store] store.json records 非数组，已重置');
+        this.records = [];
+        return;
+      }
       this.records = parsed.records.map((r) => ({
         ...r,
         vector: new Map(Object.entries(r.vector)),
       }));
     } catch {
-      // 文件不存在或损坏，从空开始
       this.records = [];
     }
   }
 
-  /** 持久化到磁盘（原子写） */
+  /** 持久化到磁盘（原子写）。H5: 使用唯一 tmp 文件名防并行碰撞 */
   async persist(): Promise<void> {
     await mkdir(this.dir, { recursive: true });
     const record: PersistedStore = {
       __schema: SCHEMA_KEY,
       version: 1,
-      // Map 序列化为普通对象
       records: this.records.map((r) => ({
         ...r,
         vector: Object.fromEntries(r.vector) as unknown as Map<string, number>,
       })),
     };
-    const tmp = `${this.path}.tmp`;
+    // H5: 唯一 tmp 文件名（pid + 时间戳 + 随机），防并行写入碰撞
+    const tmp = `${this.path}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 6)}.tmp`;
     await writeFile(tmp, JSON.stringify(record, null, 2), 'utf8');
     await rename(tmp, this.path);
   }
@@ -155,6 +163,17 @@ export class MemoryStore {
     return record;
   }
 
+  /**
+   * P1: 添加一条带类型和置信度的记忆（反思引擎用）。
+   * type=lesson 表示从任务结果中提取的经验，confidence 由 verify 结果决定。
+   */
+  addTyped(text: string, memType: 'fact' | 'skill' | 'lesson' | 'error', confidence: number, metadata?: Record<string, unknown>): MemoryRecord {
+    const record = this.add(text, { ...metadata, type: memType, confidence });
+    record.type = memType;
+    record.confidence = confidence;
+    return record;
+  }
+
   /** 搜索最相关的 k 条记忆 */
   search(query: string, k = 3): MemorySearchResult[] {
     const queryVec = tokenize(query);
@@ -167,6 +186,34 @@ export class MemoryStore {
       .sort((a, b) => b.score - a.score)
       .slice(0, k);
     return scored;
+  }
+
+  /**
+   * P1: 检索高置信度的相关记忆（用于 Worker context 注入）。
+   * 只返回 confidence >= minConfidence 的记录，按相似度排序。
+   * 比普通 search 更严格——避免注入未验证的低质记忆。
+   */
+  searchRelevant(query: string, k = 3, minConfidence = 0.5): MemorySearchResult[] {
+    return this.search(query, k)
+      .filter((r) => (r.record.confidence ?? 1) >= minConfidence);
+  }
+
+  /**
+   * P1: 更新记忆置信度（反思引擎在验证后调用）。
+   * 验证通过 → confidence 提升；验证失败 → confidence 下降。
+   */
+  updateConfidence(id: string, delta: number): void {
+    const record = this.records.find((r) => r.id === id);
+    if (record) {
+      record.confidence = Math.max(0, Math.min(1, (record.confidence ?? 0.5) + delta));
+    }
+  }
+
+  /**
+   * P1: 获取所有 lessons 类型记忆（经验教训），用于跨任务学习。
+   */
+  getLessons(): MemoryRecord[] {
+    return this.records.filter((r) => r.type === 'lesson');
   }
 
   /** 当前记忆总数 */
