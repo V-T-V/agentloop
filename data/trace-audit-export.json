@@ -1,0 +1,133 @@
+{
+  "exportedAt": "2026-07-25T23:28:27.469Z",
+  "spans": [
+    {
+      "id": "span_1",
+      "name": "run",
+      "parentId": null,
+      "status": "ok",
+      "durationMs": 0.998,
+      "attributes": {
+        "durable.resumed": false,
+        "durable.runId": "",
+        "answer": "[DemoLLM] 完成：echo: hello-trace",
+        "stopReason": "final"
+      }
+    },
+    {
+      "id": "span_2",
+      "name": "step",
+      "parentId": "span_1",
+      "status": "ok",
+      "durationMs": 0.796,
+      "attributes": {
+        "step": 1
+      }
+    },
+    {
+      "id": "span_3",
+      "name": "llm",
+      "parentId": "span_2",
+      "status": "ok",
+      "durationMs": 0.213,
+      "attributes": {
+        "step": 1,
+        "input.tools": [
+          "echo"
+        ],
+        "input.messages": [
+          {
+            "role": "system",
+            "content": "你是回显 agent。"
+          },
+          {
+            "role": "user",
+            "content": "请回显 hello-trace"
+          }
+        ],
+        "output.content": "[DemoLLM] 调用 echo 工具。",
+        "output.toolCalls": [
+          {
+            "id": "c1",
+            "name": "echo",
+            "arguments": {
+              "text": "hello-trace"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "span_4",
+      "name": "tool",
+      "parentId": "span_2",
+      "status": "ok",
+      "durationMs": 0.389,
+      "attributes": {
+        "step": 1,
+        "tool": "echo",
+        "input.arguments": {
+          "text": "hello-trace"
+        },
+        "requiresApproval": false,
+        "output.result": "echo: hello-trace",
+        "output.ok": true,
+        "ok": true
+      }
+    },
+    {
+      "id": "span_5",
+      "name": "step",
+      "parentId": "span_1",
+      "status": "ok",
+      "durationMs": 0.071,
+      "attributes": {
+        "step": 2
+      }
+    },
+    {
+      "id": "span_6",
+      "name": "llm",
+      "parentId": "span_5",
+      "status": "ok",
+      "durationMs": 0.023,
+      "attributes": {
+        "step": 2,
+        "input.tools": [
+          "echo"
+        ],
+        "input.messages": [
+          {
+            "role": "system",
+            "content": "你是回显 agent。"
+          },
+          {
+            "role": "user",
+            "content": "请回显 hello-trace"
+          },
+          {
+            "role": "assistant",
+            "content": "[DemoLLM] 调用 echo 工具。",
+            "toolCalls": [
+              {
+                "id": "c1",
+                "name": "echo",
+                "arguments": {
+                  "text": "hello-trace"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "echo: hello-trace",
+            "toolCallId": "c1",
+            "name": "echo"
+          }
+        ],
+        "output.content": "[DemoLLM] 完成：echo: hello-trace",
+        "output.toolCalls": []
+      }
+    }
+  ]
+}
