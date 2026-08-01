@@ -170,6 +170,10 @@ run（root span）
 | `LOOP_COMPACT_THRESHOLD` | `0.85` | token 占比压缩阈值 |
 | `LOOP_COMPACT_MAX_MESSAGES` | `60` | 消息条数压缩阈值 |
 | `LOOP_COMPACT_RECENT` | `6` | 压缩时保留最近 N 条 |
+| `LOOP_COST_BUDGET_TOKENS` | `0` | 成本预算 token 上限（0=不启用预算刹车） |
+| `LOOP_COST_BUDGET_PER_K` | `0` | 每千 token 费用（仅展示估算成本） |
+| `LOOP_COST_BUDGET_WARNING` | `0.8` | 预算预警阈值占比（0-1） |
+| `LOOP_CHECKPOINT_DIR` | `.agentloop/checkpoints` | 检查点持久化目录 |
 | `LOOP_STREAM` | `1` | 1=流式，0=非流式 |
 | `LOOP_TRACE` | `1` | 1=记录 span，0=关闭 |
 | `LOOP_PRICE_INPUT_PER_1K` | `0` | 输入 token 价格（/1K，仅 /stats 展示） |
@@ -208,20 +212,116 @@ src/
 ├── memory.ts        内存级消息缓冲 + 滑动窗口 + 序列化
 ├── types.ts         核心类型
 ├── errors.ts        结构化 LlmHttpError
+├── budget.ts        成本/Token 预算守卫（累加器 + 阈值检测 + 快照恢复）
+├── checkpoint.ts    Durable 执行：检查点持久化 + 多代保留 + 崩溃恢复
+├── config-check.ts  启动期配置校验（类型/范围/枚举/互斥）
+├── bench.ts         性能基准测试（关键路径计时 + 内存测量）
+├── debug.ts         调试工具（状态快照/事件回放/时序甘特图）
 ├── env.ts / retry.ts  零依赖工具
 ├── tools/           内置工具 + registry
 └── cli.ts           CLI（流式 + /stats /trace + /sessions /save /load + /traces /replay /eval + HITL）
-test/                154 个测试覆盖全部模块
+test/                630 测试覆盖全部模块（含 R2-R8 深层边界测试）
 ```
 
 ## 开发
 
 ```bash
-npm test            # 全部测试（78 个）
+npm test            # 全部测试（node:test，41 测试文件 / 630 用例）
 npm run type-check  # TS 类型检查
 npm run lint        # ESLint
-npm run product:check # 产品化门禁
+npm run product:check # 产品化门禁（7 个 gate）
+npm run config:check  # 启动期配置校验（类型/范围/互斥）
+npm run bench         # 性能基准报告（关键路径耗时与内存）
 npm run format      # Prettier 格式化
+```
+
+## 库级 API 使用示例
+
+除了 CLI，`runLoop` 也可作为库嵌入上层应用：
+
+```ts
+import { runLoop, Memory } from 'agentloop/src/loop.ts';
+import { createLLM } from 'agentloop/src/llm.ts';
+
+const result = await runLoop({
+  llm: createLLM(),                     // 真实 LLM；未配 key 时自动 StubLLM
+  tools: [/* ToolDef[] */],
+  system: '你是一个助手',
+  user: '帮我算 1+1 并查现在时间',
+  maxSteps: 8,
+  stream: true,
+  onEvent: (e) => {
+    if (e.type === 'stream_delta') process.stdout.write(e.text);
+    if (e.type === 'tool_call') console.log(`→ 调用 ${e.call.name}`);
+  },
+  // 可选能力开关（不传则退化回朴素 loop）
+  // budget: { maxTotalTokens: 50000 },           // 成本预算
+  // durable: { runId: 'my-task', resume: true }, // checkpoint-and-resume
+  // onApproval: async (req) => ({ approved: true }), // HITL 审批
+});
+console.log(result.answer);     // 最终答案
+console.log(result.totalUsage); // 累计 token
+// result.trace：完整 span 树（含 LLM 输入输出/工具结果/压缩摘要）
+```
+
+调试与诊断（`src/debug.ts`）：
+
+```ts
+import { EventRecorder, exportSnapshot, renderTimingDiagram, summarizeEventLog } from 'agentloop/src/debug.ts';
+
+const rec = new EventRecorder();
+await runLoop({ /* ... */ onEvent: rec.record });
+const log = rec.exportLog();
+console.log(summarizeEventLog(log));   // 事件计数/工具调用/压缩/错误
+console.log(renderTimingDiagram(result.trace)); // ASCII 甘特图
+```
+
+## 性能基准
+
+`npm run bench` 跑关键路径的耗时与内存测量（Node v24 / win64 示例数据，仅供参考）：
+
+| 场景 | avg | p95 | ops/s |
+|------|-----|-----|-------|
+| `estimateTokens`（10k 字符） | ~450μs | ~790μs | ~2200 |
+| `estimateMemoryTokens`（1000 条消息） | ~8.6ms | ~12.6ms | ~117 |
+| `Memory.snapshot`（窗口 50/500） | ~25μs | ~35μs | ~38000 |
+| `StreamAggregator`（100 chunk） | ~7.6μs | ~10.7μs | ~122000 |
+| `makeCheckpoint + stringify`（500 条） | ~3.3ms | ~5.2ms | ~306 |
+| `runLoop`（StubLLM 3 步） | ~61μs | ~135μs | ~16000 |
+
+可见：SSE 聚合与内存快照是亚毫秒级热路径；token 估算与 checkpoint 序列化在千条规模仍可控；端到端主循环（无真实 LLM）约 60μs/步。
+
+## 架构图
+
+```
+                        ┌─────────────────────────────────────────┐
+                        │              runLoop()                   │
+                        │  for step = 1..maxSteps:                 │
+                        │   ┌──────────────────────────────┐       │
+            ┌──────────►│   │ 1. shouldCompact? → compact   │ compact.ts
+            │           │   ├──────────────────────────────┤       │
+            │  memory   │   │ 2. Think: llm.chat(Stream)    │ llm.ts / streaming.ts
+            │ ─────────►│   │      → assistant msg + usage  │       │
+            │           │   ├──────────────────────────────┤       │
+            │           │   │ 3. budget.exhausted? → stop   │ budget.ts
+            │           │   ├──────────────────────────────┤       │
+            │           │   │ 4. Act: tool_calls 并发执行    │ tools/ + schema.ts
+            │           │   │      + HITL onApproval        │       │
+            │ ┌─────────┤   ├──────────────────────────────┤       │
+            │ │ recent  │   │ 5. 收敛 → content 即答案      │       │
+            │ │ window  │   │    落盘 checkpoint            │ checkpoint.ts
+            │ └─────────┤   └──────────────────────────────┘       │
+            │           └───────────┬─────────────────────────────┘
+            │                       │ onEvent(LoopEvent)
+            │                       ▼
+   ┌────────────────┐   ┌────────────────────┐   ┌─────────────────┐
+   │ compact.ts     │   │ trace.ts (span 树)  │   │ debug.ts        │
+   │ tokens.ts      │   │  → otel.ts (OTLP)   │   │  快照/事件回放/ │
+   │ 上下文工程     │   │  → trace-store.ts   │   │  时序甘特图     │
+   └────────────────┘   │  → eval.ts (judge)  │   └─────────────────┘
+                        └────────────────────┘
+   长程可靠性：budget（成本刹车）+ checkpoint（崩溃恢复）+ compact（上下文不腐）
+   配置门禁：config-check.ts（启动期类型/范围/互斥校验）
 ```
 
 ## 设计原则
@@ -230,3 +330,4 @@ npm run format      # Prettier 格式化
 - **所有能力可关闭**：环境变量 + 入参开关，关闭后退化回朴素 loop。
 - **可读性优先**：每项能力集中在独立模块，loop.ts 只做编排。
 - **离线可玩**：StubLLM 让流式/压缩/span 全部可在无 API Key 下演示与测试。
+- **启动期配置门禁**：`config-check.ts` 在 CLI 启动时校验所有 `LOOP_*` 配置的类型/范围/互斥，错误配置即时暴露而非运行时诡异行为。
