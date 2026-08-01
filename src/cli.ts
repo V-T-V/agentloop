@@ -455,8 +455,13 @@ async function repl(llm: LLMClient, stream: boolean): Promise<void> {
 
 async function main(): Promise<void> {
   loadEnv();
-  const llm = createLLM();
   const argv = process.argv.slice(2);
+  // 启动期配置校验（可用 --skip-config-check 跳过）
+  if (!argv.includes('--skip-config-check')) {
+    const { checkAndAbort } = await import('./config-check.ts');
+    checkAndAbort();
+  }
+  const llm = createLLM();
   const noStream = argv.includes('--no-stream');
   const stream = !noStream;
   const questionArgs = argv.filter((a) => !a.startsWith('-'));

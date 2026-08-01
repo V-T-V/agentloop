@@ -17,6 +17,7 @@
     "test": "node --test --import tsx \"test/**/*.test.ts\"",
     "test:watch": "node --test --watch --import tsx \"test/**/*.test.ts\"",
     "bench": "node --import tsx scripts/bench.mjs",
+    "config:check": "node --import tsx -e \"import('./src/config-check.ts').then(m=>{const r=m.validateConfig();console.log(m.formatReport(r));process.exit(r.ok?0:1)})\"",
     "product:check": "node scripts/product-check.mjs"
   },
   "devDependencies": {
