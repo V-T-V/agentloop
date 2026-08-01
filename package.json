@@ -16,6 +16,7 @@
     "format:check": "prettier --check \"**/*.{ts,md}\"",
     "test": "node --test --import tsx \"test/**/*.test.ts\"",
     "test:watch": "node --test --watch --import tsx \"test/**/*.test.ts\"",
+    "bench": "node --import tsx scripts/bench.mjs",
     "product:check": "node scripts/product-check.mjs"
   },
   "devDependencies": {
