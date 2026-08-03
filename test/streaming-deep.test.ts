@@ -295,8 +295,9 @@ test('大流量：100 个交错工具调用（index 0-99）', () => {
 
 test('端到端：完整 SSE 流（parse → feed → take）还原 content + usage', () => {
   // 注：parseSSELine 从 delta 提取 role/content/usage（camelCase）。
-  // tool_calls 的增量合并由 StreamAggregator.feed 直接处理（见中断恢复组），
-  // parseSSELine 不做 snake_case tool_calls 的字段映射（已知行为，由 llm.ts 上层适配）。
+  // tool_calls 的增量合并由 StreamAggregator.feed 直接处理（见中断恢复组）。
+  // parseSSELine 同时支持 camelCase（toolCalls）与 snake_case（tool_calls），
+  // 后者覆盖 OpenAI/GLM 原始 SSE delta 格式。
   const mkLine = (delta: object, usage?: object) =>
     'data: ' + JSON.stringify({ choices: [{ delta }], ...(usage ? { usage } : {}) });
   const lines = [
@@ -324,13 +325,55 @@ test('端到端：完整 SSE 流（parse → feed → take）还原 content + us
   assert.equal(usage!.totalTokens, 15);
 });
 
-test('已知行为：parseSSELine 不映射 snake_case tool_calls（delta.tool_calls 被忽略）', () => {
-  // 记录现状：parseSSELine 只读 delta.toolCalls（camelCase），OpenAI 的 tool_calls 不提取。
+test('parseSSELine：snake_case tool_calls 被规整为 camelCase toolCalls', () => {
+  // 修复（D6）：OpenAI/GLM 原始 SSE delta 用 snake_case `tool_calls`，
+  // parseSSELine 现在将其规整为 StreamChunk.toolCalls（camelCase）。
   const line = 'data: ' + JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'c1', function: { name: 'f', arguments: '{}' } }] } }] });
   const r = parseSSELine(line);
   assert.ok(r.chunk);
-  assert.equal(r.chunk!.toolCalls, undefined, 'snake_case tool_calls 不被 parseSSELine 提取');
+  assert.ok(r.chunk!.toolCalls, 'snake_case tool_calls 现在被提取');
+  assert.equal(r.chunk!.toolCalls![0]!.index, 0);
+  assert.equal(r.chunk!.toolCalls![0]!.id, 'c1');
+  assert.equal(r.chunk!.toolCalls![0]!.function!.name, 'f');
+  assert.equal(r.chunk!.toolCalls![0]!.function!.arguments, '{}');
   assert.equal(r.chunk!.content, undefined);
+});
+
+test('parseSSELine：camelCase toolCalls 仍兼容（优先）', () => {
+  const line = 'data: ' + JSON.stringify({ choices: [{ delta: { toolCalls: [{ index: 1, id: 'c2', function: { name: 'g', arguments: '{"x":1}' } }] } }] });
+  const r = parseSSELine(line);
+  assert.ok(r.chunk!.toolCalls);
+  assert.equal(r.chunk!.toolCalls![0]!.index, 1);
+  assert.equal(r.chunk!.toolCalls![0]!.function!.name, 'g');
+});
+
+test('parseSSELine：snake_case 多工具并发 + 缺字段兜底', () => {
+  const line = 'data: ' + JSON.stringify({
+    choices: [{ delta: { tool_calls: [
+      { index: 0, function: { name: 'a' } },
+      { index: 1, id: 'c1' },
+    ] } }],
+  });
+  const r = parseSSELine(line);
+  const calls = r.chunk!.toolCalls!;
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0]!.function!.name, 'a');
+  assert.equal(calls[0]!.index, 0);
+  assert.equal(calls[1]!.id, 'c1');
+  assert.equal(calls[1]!.index, 1);
+});
+
+test('parseSSELine：snake_case tool_calls 端到端聚合还原工具调用', () => {
+  // 模拟真实流式工具调用：分片到达的 snake_case arguments
+  const mkLine = (delta: object) => 'data: ' + JSON.stringify({ choices: [{ delta }] });
+  const agg = new StreamAggregator();
+  agg.feed(parseSSELine(mkLine({ tool_calls: [{ index: 0, id: 'call_1', function: { name: 'search', arguments: '{"q":"' } }] })).chunk!);
+  agg.feed(parseSSELine(mkLine({ tool_calls: [{ index: 0, function: { arguments: 'hello"}' } }] })).chunk!);
+  const { message } = agg.take();
+  assert.ok(message.toolCalls);
+  assert.equal(message.toolCalls![0]!.name, 'search');
+  assert.equal(message.toolCalls![0]!.id, 'call_1');
+  assert.deepEqual(message.toolCalls![0]!.arguments, { q: 'hello' });
 });
 
 test('端到端：含非法 JSON 行的流跳过该行不中断', () => {

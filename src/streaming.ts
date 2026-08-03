@@ -96,13 +96,23 @@ export function parseSSELine(
   const payload = trimmed.slice(5).trim();
   if (payload === '[DONE]') return { done: true, chunk: null };
   try {
-    const json = JSON.parse(payload) as { choices?: { delta?: StreamChunk }[]; usage?: StreamChunk['usage'] };
+    const json = JSON.parse(payload) as {
+      choices?: { delta?: Record<string, unknown> }[];
+      usage?: StreamChunk['usage'];
+    };
     // delta 在 choices[0].delta；usage 可能在顶层（某些实现）或 delta 内
-    const delta = json.choices?.[0]?.delta ?? {};
+    const delta = (json.choices?.[0]?.delta ?? {}) as Record<string, unknown> & {
+      role?: string;
+      content?: string;
+      toolCalls?: StreamChunk['toolCalls'];
+      usage?: StreamChunk['usage'];
+    };
     const chunk: StreamChunk = {
       role: delta.role,
       content: delta.content,
-      toolCalls: delta.toolCalls,
+      // 兼容 snake_case：OpenAI/GLM SSE delta 用 `tool_calls`，本项目内部统一 camelCase。
+      // 优先取 camelCase（已规整数据），否则回退 snake_case（原始 API 数据）。
+      toolCalls: delta.toolCalls ?? normalizeToolCalls(delta.tool_calls),
       usage: json.usage ?? delta.usage,
     };
     return { done: false, chunk };
@@ -110,6 +120,26 @@ export function parseSSELine(
     // 偶发的非法 JSON 行（GLM 已知偶发问题），跳过而非崩溃
     return { done: false, chunk: null };
   }
+}
+
+/**
+ * 把原始 snake_case `tool_calls` delta 数组规整为 StreamChunk.toolCalls。
+ * OpenAI 流式增量字段：index / id / function{name,arguments}（snake_case 形态本就如此，
+ * 仅外层 key 是 tool_calls；内层 function 的 name/arguments 已是无下划线的单层 key）。
+ */
+function normalizeToolCalls(
+  raw: unknown,
+): StreamChunk['toolCalls'] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  return raw.map((item) => {
+    const t = item as Record<string, unknown>;
+    const fn = (t.function ?? {}) as { name?: string; arguments?: string };
+    return {
+      index: typeof t.index === 'number' ? t.index : undefined,
+      id: typeof t.id === 'string' ? t.id : undefined,
+      function: { name: fn.name, arguments: fn.arguments },
+    };
+  });
 }
 
 /** 安全解析增量 arguments 字符串；流式下 arguments 是分片到达的，解析失败返回原始串 */
