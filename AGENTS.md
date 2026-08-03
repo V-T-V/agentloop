@@ -71,6 +71,22 @@ PRODUCT.md 所列能力**全部真实落地**（均有源文件 + 导出符号 +
 | R6 | bench.test.ts | +18 | 571 |
 | R7 | config-check.test.ts | +34 | 605 |
 | R8 | debug.test.ts | +27 | 632 |
+| D1（深度推进） | —（基线扫描，无新增测试） | — | 632 |
+
+### 未测/弱测清单（D1 基线扫描，2026-08）
+
+按"纯逻辑且零独立测试文件"优先级排序，是 D2+ 补测的重点目标：
+
+| 模块 | 源文件 | 现状 | 缺口 |
+|------|--------|------|------|
+| **重试/退避** | `retry.ts` (57 行) | **完全无独立测试** | `withRetry` 成功/重试/耗尽、`backoff` 指数+抖动封顶、`retryOn` 谓词、`isRetryableStatus` 429/5xx/4xx 边界 |
+| **MCP 注册表** | `mcp/registry.ts` (106 行) | **完全无独立测试** | `findMcpConfig` 环境变量/默认路径回退、`loadMcpConfig` JSON 解析/缺字段/坏 JSON、Claude Desktop 格式、`loadMcpFromConfig` 空配置优雅退化 |
+| **结构化错误** | `errors.ts` (16 行) | 仅 llm.test.ts 间接覆盖 | `LlmHttpError` name/status/message 字段、子类判定 |
+| **MCP 客户端** | `mcp/client.ts` (243 行) | 仅 happy-path 测试 | 请求超时、未连接调用、`listResources`/`listPrompts`、子进程异常退出 pending 拒绝、二次 connect 抛错 |
+| **轨迹** | `trajectory.ts` (145 行) | 8 用例覆盖核心 | sub-agent 深层嵌套、空 tool 输入、时间戳乱序 |
+| **运行时** | `runtime.ts` (48 行) | 无独立测试 | 由 loop 间接覆盖，可补纯函数测试 |
+
+**结论**：`retry.ts`、`mcp/registry.ts`、`errors.ts` 三处是纯逻辑且无独立测试，是 D2-D5 的最高优先级补测目标。
 
 **近期路线**（PRODUCT.md）：M1 product:check 门禁 → M2 库级 API 文档 → M3 嵌入式 SDK 示例 → M4 cogent adapter → M5 发布拆包。
 
