@@ -11,7 +11,16 @@
 - 成功标准：无 API key 时（StubLLM）可跑通完整主循环；有 key 时可接任意 OpenAI-compatible endpoint；所有能力有测试验证。
 
 ## 当前情况（Status）
-**功能完整，可作为稳定底座复用。** **51 个 TS 源文件、42 个测试文件、630 个测试用例、零运行时依赖**。
+**功能完整，可作为稳定底座复用。** **51 个 TS 源文件、44 个测试文件、718 个测试用例、零运行时依赖**。
+
+### 深度推进记录（deep-r1 ~ deep-r8）
+- **r1**: 基线扫描 632 用例确认 + 读 AGENTS.md
+- **r2-r3**: 补 mcp/registry.ts 独立测试 16 用例（findMcpConfig/loadMcpConfig/loadMcpFromConfig 边界）
+- **r4**: 补 errors.ts 独立测试 14 用例（LlmHttpError/withRetry/classify）
+- **r5**: 补 mcp/client.ts 深层路径 17 用例（超时/二次连接/JSON-RPC error/子进程退出）
+- **r6**: **修 parseSSELine 不映射 snake_case tool_calls bug**（streaming.ts normalizeToolCalls，真实 OpenAI/GLM SSE 现可正确提取）+ 3 用例
+- **r7**: 修 iterative.test flaky 隔离（LOOP_RESULTS_DIR 环境变量 + 独立临时目录）
+- **r8**: env.ts 单元测试 15 用例（parseLine 引号/注释/空值/等号边界 + env 读取/fallback）
 
 PRODUCT.md 所列能力**全部真实落地**（均有源文件 + 导出符号 + 测试）：
 
