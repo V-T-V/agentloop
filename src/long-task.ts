@@ -100,7 +100,8 @@ interface TaskResult {
   finalAnswer: string;
 }
 
-const RESULTS_DIR = '.agentloop/long-task-results';
+/** 结果目录：可通过 LOOP_RESULTS_DIR 环境变量覆盖（测试隔离用），默认 .agentloop/long-task-results */
+const RESULTS_DIR = process.env.LOOP_RESULTS_DIR?.trim() || '.agentloop/long-task-results';
 
 /** 结果目录：每个任务一个子目录，存阶段产出 */
 function taskResultsDir(taskId: string): string {

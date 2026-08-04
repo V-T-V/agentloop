@@ -23,6 +23,7 @@ import type {
   ServerMessage,
   ToolCallParams,
   ToolCallResult,
+  ToolDefinition,
   ToolsListResult,
   ResourcesListResult,
   PromptsListResult,
@@ -191,9 +192,26 @@ export class McpStdioClient {
     this.proc.stdin.write(msg + '\n');
   }
 
-  /** tools/list：获取服务端可用工具 */
+  /** tools/list：获取服务端可用工具（单页，可能含 nextCursor） */
   async listTools(): Promise<ToolsListResult> {
     return this.request<ToolsListResult>('tools/list', {});
+  }
+
+  /**
+   * tools/list 全量：自动跟随 nextCursor 翻页，合并所有页的工具。
+   * 保护：最多翻 maxPages 页（默认 50），防止服务端错误导致死循环。
+   * 返回所有页合并后的工具列表（无 nextCursor）。
+   */
+  async listAllTools(maxPages = 50): Promise<ToolsListResult> {
+    const allTools: ToolDefinition[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < maxPages; page++) {
+      const result: ToolsListResult = await this.request<ToolsListResult>('tools/list', cursor ? { cursor } : {});
+      allTools.push(...result.tools);
+      cursor = result.nextCursor;
+      if (!cursor) break;
+    }
+    return { tools: allTools };
   }
 
   /** tools/call：调用指定工具 */

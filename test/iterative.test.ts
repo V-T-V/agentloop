@@ -17,9 +17,6 @@ import { join } from 'node:path';
 
 import { runIterativeLoop, scoreArtifact, type IterativeTaskSpec } from '../src/long-task.ts';
 
-/** 默认结果目录（long-task 内部路径，测试后清理用） */
-const RESULTS_DIR = '.agentloop/long-task-results';
-
 test('scoreArtifact：长度指标', () => {
   assert.equal(scoreArtifact('artifact.length', 'hello'), 5);
   assert.equal(scoreArtifact('artifact.length', ''), 0);
@@ -43,6 +40,8 @@ test('scoreArtifact：简单算术', () => {
 
 test('runIterativeLoop：达到目标即停（StubLLM）', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'iter-'));
+  const prevResultsDir = process.env.LOOP_RESULTS_DIR;
+  process.env.LOOP_RESULTS_DIR = dir;
   try {
     // StubLLM 无 API key 时返回固定内容，无法真正「改进」artifact
     // 但能验证完整流程不崩溃、产物落盘
@@ -56,21 +55,23 @@ test('runIterativeLoop：达到目标即停（StubLLM）', async () => {
       maxIterations: 3,
       stepsPerIteration: 1,
     };
-    // 临时改环境使结果写入临时目录
     process.env.LOOP_LLM_API_KEY = ''; // 触发 StubLLM
     await runIterativeLoop(spec);
-    // best-artifact 应已落盘
-    const artifactPath = join(RESULTS_DIR, spec.id, 'best-artifact.txt');
+    // best-artifact 应已落盘到临时目录
+    const artifactPath = join(dir, spec.id, 'best-artifact.txt');
     assert.ok(existsSync(artifactPath), '最佳产物已落盘');
     const artifact = await readFile(artifactPath, 'utf8');
     assert.ok(artifact.length > 0, '产物非空');
   } finally {
-    await rm(join(RESULTS_DIR, 'iter-stop-test'), { recursive: true, force: true }).catch(() => {});
+    process.env.LOOP_RESULTS_DIR = prevResultsDir;
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
 });
 
 test('runIterativeLoop：迭代上限保护（StubLLM）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'iter-limit-'));
+  const prevResultsDir = process.env.LOOP_RESULTS_DIR;
+  process.env.LOOP_RESULTS_DIR = dir;
   try {
     const spec: IterativeTaskSpec = {
       id: 'iter-limit-test',
@@ -85,12 +86,13 @@ test('runIterativeLoop：迭代上限保护（StubLLM）', async () => {
     process.env.LOOP_LLM_API_KEY = ''; // StubLLM
     await runIterativeLoop(spec);
     // iteration-history 应记录 2 次迭代（上限）
-    const histPath = join(RESULTS_DIR, spec.id, 'iteration-history.json');
+    const histPath = join(dir, spec.id, 'iteration-history.json');
     assert.ok(existsSync(histPath), '历史已落盘');
     const hist = JSON.parse(await readFile(histPath, 'utf8')) as { records: Array<{ iteration: number }> };
     assert.ok(hist.records.length <= 2, '不超过 maxIterations');
   } finally {
-    await rm(join(RESULTS_DIR, 'iter-limit-test'), { recursive: true, force: true }).catch(() => {});
+    process.env.LOOP_RESULTS_DIR = prevResultsDir;
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
 });
 

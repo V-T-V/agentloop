@@ -50,7 +50,8 @@ export async function loadMcpTools(config: McpToolsConfig): Promise<{
   const client = new McpStdioClient(config);
   await client.connect();
 
-  const { tools: mcpTools } = await client.listTools();
+  // 用 listAllTools 翻页拉取全部工具（分页 server 不会丢工具）；无分页时等价于 listTools。
+  const { tools: mcpTools } = await client.listAllTools();
   const prefix = config.toolPrefix ?? '';
   const requiresApproval = config.requiresApproval ?? true;
 

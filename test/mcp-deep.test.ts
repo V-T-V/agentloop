@@ -326,3 +326,97 @@ test('client：连接的进程退出后 close 不抛错（幂等清理）', asyn
     await cleanup();
   }
 });
+
+// —————————— tools/list 分页（D7 新增 listAllTools）——————————
+
+test('listAllTools：自动跟随 nextCursor 翻页合并所有工具', async () => {
+  // 分页 server：3 页，每页 2 个工具，前两页返回 nextCursor
+  const extra = `else if (msg.method === 'tools/list') {
+    var cursor = msg.params && msg.params.cursor;
+    var all = [
+      { name: 't0', inputSchema: { type: 'object' } },
+      { name: 't1', inputSchema: { type: 'object' } },
+      { name: 't2', inputSchema: { type: 'object' } },
+      { name: 't3', inputSchema: { type: 'object' } },
+      { name: 't4', inputSchema: { type: 'object' } },
+      { name: 't5', inputSchema: { type: 'object' } },
+    ];
+    if (!cursor) {
+      respond(msg.id, { tools: all.slice(0, 2), nextCursor: 'page2' });
+    } else if (cursor === 'page2') {
+      respond(msg.id, { tools: all.slice(2, 4), nextCursor: 'page3' });
+    } else if (cursor === 'page3') {
+      respond(msg.id, { tools: all.slice(4, 6) }); // 末页无 nextCursor
+    }
+  }`;
+  const [path, cleanup] = await writeMockServer(baseServer(extra));
+  try {
+    const client = new McpStdioClient({ command: 'node', args: [path] });
+    await client.connect();
+    const { tools, nextCursor } = await client.listAllTools();
+    assert.equal(tools.length, 6, '三页合并后共 6 个工具');
+    assert.equal(tools[0]!.name, 't0');
+    assert.equal(tools[5]!.name, 't5');
+    assert.equal(nextCursor, undefined, '合并后不再有 nextCursor');
+    await client.close();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('listAllTools：无分页（无 nextCursor）时返回单页全部工具', async () => {
+  const extra = `else if (msg.method === 'tools/list') {
+    respond(msg.id, { tools: [
+      { name: 'a', inputSchema: { type: 'object' } },
+      { name: 'b', inputSchema: { type: 'object' } },
+    ] });
+  }`;
+  const [path, cleanup] = await writeMockServer(baseServer(extra));
+  try {
+    const client = new McpStdioClient({ command: 'node', args: [path] });
+    await client.connect();
+    const { tools } = await client.listAllTools();
+    assert.equal(tools.length, 2);
+    await client.close();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('listAllTools：maxPages 上限防止死循环（server 永远返回 nextCursor）', async () => {
+  // 坏 server：永远返回 nextCursor
+  const extra = `else if (msg.method === 'tools/list') {
+    respond(msg.id, { tools: [{ name: 'x', inputSchema: { type: 'object' } }], nextCursor: 'forever' });
+  }`;
+  const [path, cleanup] = await writeMockServer(baseServer(extra));
+  try {
+    const client = new McpStdioClient({ command: 'node', args: [path] });
+    await client.connect();
+    const { tools } = await client.listAllTools(3); // 仅允许翻 3 页
+    assert.equal(tools.length, 3, '受 maxPages=3 限制，最多取 3 个 x');
+    await client.close();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('adapter：loadMcpTools 对分页 server 拉取全部工具', async () => {
+  const extra = `else if (msg.method === 'tools/list') {
+    var cursor = msg.params && msg.params.cursor;
+    if (!cursor) {
+      respond(msg.id, { tools: [{ name: 'p1', inputSchema: { type: 'object' } }], nextCursor: 'c2' });
+    } else {
+      respond(msg.id, { tools: [{ name: 'p2', inputSchema: { type: 'object' } }] });
+    }
+  }`;
+  const [path, cleanup] = await writeMockServer(baseServer(extra));
+  try {
+    const { tools, close } = await loadMcpTools({ command: 'node', args: [path], requiresApproval: false });
+    assert.equal(tools.length, 2, '分页两页的工具都被加载');
+    assert.ok(tools.some((t) => t.name === 'p1'));
+    assert.ok(tools.some((t) => t.name === 'p2'));
+    await close();
+  } finally {
+    await cleanup();
+  }
+});
