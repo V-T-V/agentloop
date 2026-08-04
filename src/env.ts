@@ -13,7 +13,7 @@ import { resolve } from 'node:path';
 let loaded = false;
 
 /** 解析单行 KEY=VALUE，返回 [key, value] 或 null（注释/空行） */
-function parseLine(line: string): [string, string] | null {
+export function parseLine(line: string): [string, string] | null {
   const trimmed = line.trim();
   if (!trimmed || trimmed.startsWith('#')) return null;
 
