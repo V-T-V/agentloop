@@ -140,8 +140,10 @@ test('withRetry：retryOn 收到 attempt 索引', async () => {
 });
 
 test('withRetry：退避时长封顶于 maxDelayMs', async () => {
-  // 用 fake timers 不便（node:test 无原生支持），改为低 max 直接测总时长上界
-  // retries=5, baseDelayMs=1000, maxDelayMs=50：每段最多 50ms，5 段最多 250ms
+  // 用 wall-clock 测总时长上界。注意：本断言的判别力来自「封顶 vs 未封顶」的量级差。
+  // 未封顶时退避和 = 1000*(2^0+2^1+2^2+2^3+2^4) = 31000ms；封顶后 5 段各 ≤ 50ms = 250ms。
+  // 因此把上界放到 5000ms 仍能清晰区分封顶(250)与未封顶(31000)，同时容忍全量并发跑下
+  // Node 事件循环调度抖动（实测封顶值 250ms，但并发负载下单段可被推迟到 ~100ms 量级）。
   const start = Date.now();
   await assert.rejects(
     withRetry(async () => { throw new Error('x'); }, {
@@ -152,8 +154,8 @@ test('withRetry：退避时长封顶于 maxDelayMs', async () => {
     /x/,
   );
   const elapsed = Date.now() - start;
-  // 5 段退避，每段封顶 50ms → 上界 5*50 + 抖动容差，给 300ms 余量
-  assert.ok(elapsed < 400, `总耗时 ${elapsed}ms 应 < 400ms（退避已封顶）`);
+  // 封顶后理论上界 5*50=250ms；放宽到 5000ms 容忍并发调度抖动，仍 << 未封顶 31000ms
+  assert.ok(elapsed < 5000, `总耗时 ${elapsed}ms 应 < 5000ms（退避已封顶；未封顶应为 ~31000ms）`);
   assert.ok(elapsed >= 50, '至少有一次退避');
 });
 

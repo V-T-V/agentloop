@@ -17,6 +17,26 @@ import { join } from 'node:path';
 
 import { runIterativeLoop, scoreArtifact, type IterativeTaskSpec } from '../src/long-task.ts';
 
+/**
+ * 在 fn 执行期间静默 console.log/error/warn/info。
+ *
+ * long-task.ts 在迭代过程中会打印大量 emoji 框线横幅（55 处 console 调用），
+ * 当全量测试套件并发跑时，这些大块 Unicode 输出经 node:test 子进程 IPC 通道
+ * 回传，偶发触发 runner 的 structuredClone 反序列化错误
+ * "Unable to deserialize cloned data due to invalid or unsupported version"。
+ * 静默输出后 IPC payload 显著缩小，测试逻辑不变、断言仍照常执行。
+ */
+async function quiet<T>(fn: () => Promise<T>): Promise<T> {
+  const methods: Array<keyof Console> = ['log', 'error', 'warn', 'info'];
+  const saved = methods.map((m) => [m, (console as unknown as Record<string, unknown>)[m as string]] as const);
+  for (const m of methods) (console as unknown as Record<string, unknown>)[m as string] = () => {};
+  try {
+    return await fn();
+  } finally {
+    for (const [m, orig] of saved) (console as unknown as Record<string, unknown>)[m as string] = orig;
+  }
+}
+
 test('scoreArtifact：长度指标', () => {
   assert.equal(scoreArtifact('artifact.length', 'hello'), 5);
   assert.equal(scoreArtifact('artifact.length', ''), 0);
@@ -56,7 +76,7 @@ test('runIterativeLoop：达到目标即停（StubLLM）', async () => {
       stepsPerIteration: 1,
     };
     process.env.LOOP_LLM_API_KEY = ''; // 触发 StubLLM
-    await runIterativeLoop(spec);
+    await quiet(() => runIterativeLoop(spec));
     // best-artifact 应已落盘到临时目录
     const artifactPath = join(dir, spec.id, 'best-artifact.txt');
     assert.ok(existsSync(artifactPath), '最佳产物已落盘');
@@ -84,7 +104,7 @@ test('runIterativeLoop：迭代上限保护（StubLLM）', async () => {
       stepsPerIteration: 1,
     };
     process.env.LOOP_LLM_API_KEY = ''; // StubLLM
-    await runIterativeLoop(spec);
+    await quiet(() => runIterativeLoop(spec));
     // iteration-history 应记录 2 次迭代（上限）
     const histPath = join(dir, spec.id, 'iteration-history.json');
     assert.ok(existsSync(histPath), '历史已落盘');
