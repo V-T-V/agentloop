@@ -230,7 +230,7 @@ test('list：返回的 meta 字段完整（id/title/updatedAt/messageCount）', 
     await store.save('s9', data);
     const metas = await store.list();
     assert.equal(metas.length, 1);
-    const m = metas[0];
+    const m = metas[0]!;
     assert.equal(m.id, 's9');
     assert.equal(m.title, '元信息测试');
     assert.equal(m.updatedAt, '2026-08-06T08:00:00.000Z');

@@ -43,7 +43,7 @@ interface CallLog {
 /** 安装 stub：返回还原函数与调用日志 */
 function stubClient(behavior: StubBehavior = {}): { restore: () => void; calls: CallLog } {
   const calls: CallLog = { connect: 0, close: 0, callTool: [] };
-  const proto = McpStdioClient.prototype as Record<string, unknown>;
+  const proto = McpStdioClient.prototype as unknown as Record<string, unknown>;
   const orig: Record<string, unknown> = {
     connect: proto.connect,
     listAllTools: proto.listAllTools,
@@ -92,9 +92,9 @@ test('loadMcpTools：name/description/parameters 直接映射', async () => {
   try {
     const { tools } = await loadMcpTools(baseConfig);
     assert.equal(tools.length, 1);
-    assert.equal(tools[0].name, 'search');
-    assert.equal(tools[0].description, '搜索工具');
-    assert.deepEqual(tools[0].parameters, {
+    assert.equal(tools[0]!.name, 'search');
+    assert.equal(tools[0]!.description, '搜索工具');
+    assert.deepEqual(tools[0]!.parameters, {
       type: 'object',
       properties: { q: { type: 'string' } },
       required: ['q'],
@@ -108,7 +108,7 @@ test('loadMcpTools：默认 requiresApproval=true', async () => {
   const stub = stubClient({ tools: [{ name: 't', inputSchema: { type: 'object' } }] });
   try {
     const { tools } = await loadMcpTools(baseConfig);
-    assert.equal(tools[0].requiresApproval, true, 'MCP 外部工具默认需审批');
+    assert.equal(tools[0]!.requiresApproval, true, 'MCP 外部工具默认需审批');
   } finally {
     stub.restore();
   }
@@ -118,7 +118,7 @@ test('loadMcpTools：显式 requiresApproval=false 透传', async () => {
   const stub = stubClient({ tools: [{ name: 't', inputSchema: { type: 'object' } }] });
   try {
     const { tools } = await loadMcpTools({ ...baseConfig, requiresApproval: false });
-    assert.equal(tools[0].requiresApproval, false);
+    assert.equal(tools[0]!.requiresApproval, false);
   } finally {
     stub.restore();
   }
@@ -128,7 +128,7 @@ test('loadMcpTools：toolPrefix 加前缀防多 server 冲突', async () => {
   const stub = stubClient({ tools: [{ name: 'read', inputSchema: { type: 'object' } }] });
   try {
     const { tools } = await loadMcpTools({ ...baseConfig, toolPrefix: 'fs' });
-    assert.equal(tools[0].name, 'fs_read', '前缀用 _ 拼接');
+    assert.equal(tools[0]!.name, 'fs_read', '前缀用 _ 拼接');
   } finally {
     stub.restore();
   }
@@ -138,7 +138,7 @@ test('loadMcpTools：无前缀时 name 保持原样', async () => {
   const stub = stubClient({ tools: [{ name: 'read', inputSchema: { type: 'object' } }] });
   try {
     const { tools } = await loadMcpTools(baseConfig);
-    assert.equal(tools[0].name, 'read');
+    assert.equal(tools[0]!.name, 'read');
   } finally {
     stub.restore();
   }
@@ -151,7 +151,7 @@ test('loadMcpTools：inputSchema 缺失兜底为空 object schema', async () => 
   });
   try {
     const { tools } = await loadMcpTools(baseConfig);
-    assert.deepEqual(tools[0].parameters, { type: 'object', properties: {} });
+    assert.deepEqual(tools[0]!.parameters, { type: 'object', properties: {} });
   } finally {
     stub.restore();
   }
@@ -161,7 +161,7 @@ test('loadMcpTools：description 缺失兜底为「MCP 工具：{name}」', asyn
   const stub = stubClient({ tools: [{ name: 'calc', inputSchema: { type: 'object' } }] });
   try {
     const { tools } = await loadMcpTools(baseConfig);
-    assert.equal(tools[0].description, 'MCP 工具：calc');
+    assert.equal(tools[0]!.description, 'MCP 工具：calc');
   } finally {
     stub.restore();
   }
@@ -174,7 +174,7 @@ test('execute：成功返回 ok:true + 拼接 text content', async () => {
   });
   try {
     const { tools } = await loadMcpTools(baseConfig);
-    const result = await tools[0].execute({ msg: 'hi' });
+    const result = await tools[0]!.execute({ msg: 'hi' });
     assert.equal(result.ok, true);
     assert.equal(result.output, 'hello world');
   } finally {
@@ -193,7 +193,7 @@ test('execute：多 content 用换行拼接', async () => {
   });
   try {
     const { tools } = await loadMcpTools(baseConfig);
-    const result = await tools[0].execute({});
+    const result = await tools[0]!.execute({});
     assert.equal(result.output, '第一段\n第二段');
   } finally {
     stub.restore();
@@ -207,7 +207,7 @@ test('execute：image content 渲染为「[图片 mimeType]」', async () => {
   });
   try {
     const { tools } = await loadMcpTools(baseConfig);
-    const result = await tools[0].execute({});
+    const result = await tools[0]!.execute({});
     assert.equal(result.output, '[图片 image/png]');
   } finally {
     stub.restore();
@@ -221,7 +221,7 @@ test('execute：image content 无 mimeType 渲染为「[图片 ]」', async () =
   });
   try {
     const { tools } = await loadMcpTools(baseConfig);
-    const result = await tools[0].execute({});
+    const result = await tools[0]!.execute({});
     assert.equal(result.output, '[图片 ]');
   } finally {
     stub.restore();
@@ -235,7 +235,7 @@ test('execute：resource content 渲染为「[资源 text]」', async () => {
   });
   try {
     const { tools } = await loadMcpTools(baseConfig);
-    const result = await tools[0].execute({});
+    const result = await tools[0]!.execute({});
     assert.equal(result.output, '[资源 file:///a.txt]');
   } finally {
     stub.restore();
@@ -255,7 +255,7 @@ test('execute：混合 text/image/resource 三类拼接', async () => {
   });
   try {
     const { tools } = await loadMcpTools(baseConfig);
-    const result = await tools[0].execute({});
+    const result = await tools[0]!.execute({});
     assert.equal(result.output, '说明\n[图片 image/jpeg]\n[资源 uri]');
   } finally {
     stub.restore();
@@ -269,7 +269,7 @@ test('execute：MCP 返回 isError=true 时 ok:false', async () => {
   });
   try {
     const { tools } = await loadMcpTools(baseConfig);
-    const result = await tools[0].execute({});
+    const result = await tools[0]!.execute({});
     assert.equal(result.ok, false, 'isError 时 ok:false');
     assert.equal(result.output, '工具内部错误', 'output 仍透传');
   } finally {
@@ -284,7 +284,7 @@ test('execute：callTool 抛错被捕获，返回 ok:false + 失败消息', asyn
   });
   try {
     const { tools } = await loadMcpTools(baseConfig);
-    const result = await tools[0].execute({});
+    const result = await tools[0]!.execute({});
     assert.equal(result.ok, false);
     assert.ok(result.output.includes('调用失败'), '应含「调用失败」前缀');
     assert.ok(result.output.includes('连接断开'), '应含原始错误消息');
@@ -301,7 +301,7 @@ test('execute：callTool 抛非 Error 对象也能拼接', async () => {
   });
   try {
     const { tools } = await loadMcpTools(baseConfig);
-    const result = await tools[0].execute({});
+    const result = await tools[0]!.execute({});
     assert.equal(result.ok, false);
     assert.ok(result.output.includes('字符串错误'));
   } finally {
@@ -316,10 +316,10 @@ test('execute：透传 arguments 给 client.callTool', async () => {
   });
   try {
     const { tools } = await loadMcpTools(baseConfig);
-    await tools[0].execute({ q: '关键词', limit: 10 });
+    await tools[0]!.execute({ q: '关键词', limit: 10 });
     assert.equal(stub.calls.callTool.length, 1);
-    assert.equal(stub.calls.callTool[0].name, 'search');
-    assert.deepEqual(stub.calls.callTool[0].arguments, { q: '关键词', limit: 10 });
+    assert.equal(stub.calls.callTool[0]!.name, 'search');
+    assert.deepEqual(stub.calls.callTool[0]!.arguments, { q: '关键词', limit: 10 });
   } finally {
     stub.restore();
   }
@@ -332,9 +332,9 @@ test('execute：callTool 用原始 mcpTool.name（不受前缀影响）', async 
   });
   try {
     const { tools } = await loadMcpTools({ ...baseConfig, toolPrefix: 'fs' });
-    assert.equal(tools[0].name, 'fs_read', '对外名带前缀');
-    await tools[0].execute({});
-    assert.equal(stub.calls.callTool[0].name, 'read', '但 callTool 用原始名 read');
+    assert.equal(tools[0]!.name, 'fs_read', '对外名带前缀');
+    await tools[0]!.execute({});
+    assert.equal(stub.calls.callTool[0]!.name, 'read', '但 callTool 用原始名 read');
   } finally {
     stub.restore();
   }
@@ -385,7 +385,7 @@ test('loadMcpServers：多 server 工具合并并加前缀', async () => {
 test('loadMcpServers：单个 server 失败不阻塞其他', async () => {
   // 第一个 server 用正常 stub，第二个让它 connect 抛错
   let connectCalls = 0;
-  const proto = McpStdioClient.prototype as Record<string, unknown>;
+  const proto = McpStdioClient.prototype as unknown as Record<string, unknown>;
   const origConnect = proto.connect;
   const origList = proto.listAllTools;
   const origCall = proto.callTool;
@@ -408,7 +408,7 @@ test('loadMcpServers：单个 server 失败不阻塞其他', async () => {
       good: { ...baseConfig },
     });
     assert.equal(tools.length, 1, 'broken 失败被吞，good 的工具保留');
-    assert.equal(tools[0].name, 'good_ok');
+    assert.equal(tools[0]!.name, 'good_ok');
   } finally {
     proto.connect = origConnect;
     proto.listAllTools = origList;
@@ -448,7 +448,7 @@ test('loadMcpServers：每个 server 的工具默认 requiresApproval=true', asy
   const stub = stubClient({ tools: [{ name: 'x', inputSchema: { type: 'object' } }] });
   try {
     const { tools } = await loadMcpServers({ s1: { ...baseConfig } });
-    assert.equal(tools[0].requiresApproval, true);
+    assert.equal(tools[0]!.requiresApproval, true);
   } finally {
     stub.restore();
   }
@@ -479,7 +479,7 @@ test('loadMcpTools：多个工具均正确映射', async () => {
       tools.map((t) => t.name),
       ['a', 'b', 'c'],
     );
-    assert.equal(tools[2].description, 'MCP 工具：c', 'c 缺 description 走兜底');
+    assert.equal(tools[2]!.description, 'MCP 工具：c', 'c 缺 description 走兜底');
   } finally {
     stub.restore();
   }
