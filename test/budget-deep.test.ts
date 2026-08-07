@@ -338,3 +338,61 @@ test('loadBudgetConfig：未配置环境变量时返回 null', () => {
     assert.ok(result.maxTotalTokens > 0);
   }
 });
+
+test('loadBudgetConfig：LOOP_COST_BUDGET_TOKENS 为正数时加载配置', () => {
+  const orig = process.env.LOOP_COST_BUDGET_TOKENS;
+  process.env.LOOP_COST_BUDGET_TOKENS = '5000';
+  try {
+    const result = loadBudgetConfig();
+    assert.ok(result, '应返回配置对象');
+    assert.equal(result!.maxTotalTokens, 5000);
+  } finally {
+    if (orig === undefined) delete process.env.LOOP_COST_BUDGET_TOKENS;
+    else process.env.LOOP_COST_BUDGET_TOKENS = orig;
+  }
+});
+
+test('loadBudgetConfig：非数字 token 值返回 null（容错）', () => {
+  const orig = process.env.LOOP_COST_BUDGET_TOKENS;
+  process.env.LOOP_COST_BUDGET_TOKENS = 'not-a-number';
+  try {
+    const result = loadBudgetConfig();
+    assert.equal(result, null, '非数字回退到 0 → null');
+  } finally {
+    if (orig === undefined) delete process.env.LOOP_COST_BUDGET_TOKENS;
+    else process.env.LOOP_COST_BUDGET_TOKENS = orig;
+  }
+});
+
+test('loadBudgetConfig：warningThreshold 钳制到 [0,1]（R5-D7 迁移 envNumber）', () => {
+  const origT = process.env.LOOP_COST_BUDGET_TOKENS;
+  const origW = process.env.LOOP_COST_BUDGET_WARNING;
+  process.env.LOOP_COST_BUDGET_TOKENS = '1000';
+  process.env.LOOP_COST_BUDGET_WARNING = '1.5';
+  try {
+    const result = loadBudgetConfig();
+    assert.equal(result!.warningThreshold, 1, '>1 钳制到上限 1');
+  } finally {
+    if (origT === undefined) delete process.env.LOOP_COST_BUDGET_TOKENS;
+    else process.env.LOOP_COST_BUDGET_TOKENS = origT;
+    if (origW === undefined) delete process.env.LOOP_COST_BUDGET_WARNING;
+    else process.env.LOOP_COST_BUDGET_WARNING = origW;
+  }
+});
+
+test('loadBudgetConfig：warningThreshold=0 被保留（合法边缘配置）', () => {
+  const origT = process.env.LOOP_COST_BUDGET_TOKENS;
+  const origW = process.env.LOOP_COST_BUDGET_WARNING;
+  process.env.LOOP_COST_BUDGET_TOKENS = '1000';
+  process.env.LOOP_COST_BUDGET_WARNING = '0';
+  try {
+    const result = loadBudgetConfig();
+    // 旧实现 Number(env||'0')||0.8 = 0||0.8 = 0.8，吞掉 0
+    assert.equal(result!.warningThreshold, 0, '0 应保留（一花费即预警）');
+  } finally {
+    if (origT === undefined) delete process.env.LOOP_COST_BUDGET_TOKENS;
+    else process.env.LOOP_COST_BUDGET_TOKENS = origT;
+    if (origW === undefined) delete process.env.LOOP_COST_BUDGET_WARNING;
+    else process.env.LOOP_COST_BUDGET_WARNING = origW;
+  }
+});

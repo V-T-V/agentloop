@@ -10,7 +10,7 @@
  * 零依赖，基于 Promise 队列实现异步信号量。
  */
 
-import { env } from './env.ts';
+import { env, envInt } from './env.ts';
 
 /** 释放函数：调用后归还一个许可 */
 type Release = () => void;
@@ -109,7 +109,8 @@ let globalLlmSemaphore: Semaphore | null = null;
 
 export function getLlmSemaphore(): Semaphore {
   if (!globalLlmSemaphore) {
-    const max = Number(env('LOOP_LLM_MAX_CONCURRENT', '4')) || 4;
+    // envInt min=1：并发数必须 >=1（Semaphore 构造函数也会钳制，这里提前规范化）。
+    const max = envInt('LOOP_LLM_MAX_CONCURRENT', 4, 1);
     globalLlmSemaphore = new Semaphore(max);
   }
   return globalLlmSemaphore;
@@ -117,5 +118,5 @@ export function getLlmSemaphore(): Semaphore {
 
 /** 重置全局信号量（测试用：让每个测试独立配置并发数） */
 export function resetLlmSemaphore(max?: number): void {
-  globalLlmSemaphore = new Semaphore(max ?? (Number(env('LOOP_LLM_MAX_CONCURRENT', '4')) || 4));
+  globalLlmSemaphore = new Semaphore(max ?? envInt('LOOP_LLM_MAX_CONCURRENT', 4, 1));
 }

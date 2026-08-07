@@ -12,7 +12,7 @@
  *   LOOP_LLM_RETRIES / LOOP_LLM_TIMEOUT_MS / LOOP_LLM_TEMPERATURE
  */
 
-import { env } from './env.ts';
+import { env, envNumber } from './env.ts';
 import { LlmHttpError } from './errors.ts';
 import { getLlmSemaphore } from './concurrency.ts';
 import { extractText } from './multimodal.ts';
@@ -110,7 +110,9 @@ export class HttpLLMClient implements LLMClient {
         ...(m.toolCallId ? { tool_call_id: m.toolCallId } : {}),
         ...(m.name ? { name: m.name } : {}),
       })),
-      temperature: Number(env('LOOP_LLM_TEMPERATURE', '0.3')),
+      // temperature=0 是合法配置（完全确定性输出）；envNumber 正确保留 0，
+      // 旧实现 Number(env)||0.3 会把 0 吞成 0.3。钳制到 [0,2]（OpenAI 范围）。
+      temperature: envNumber('LOOP_LLM_TEMPERATURE', 0.3, 0, 2),
       ...(tools.length ? { tools: toOpenAITools(tools) } : {}),
     };
     // 结构化输出：透传 response_format（OpenAI 兼容）
@@ -129,7 +131,8 @@ export class HttpLLMClient implements LLMClient {
   }
 
   private async doFetch(body: unknown, signal?: AbortSignal): Promise<Response> {
-    const timeoutMs = Number(env('LOOP_LLM_TIMEOUT_MS', '30000')) || 30000;
+    // timeoutMs=0 表示不设超时（合法但罕见）；envNumber 保留 0，min=0 允许。
+    const timeoutMs = envNumber('LOOP_LLM_TIMEOUT_MS', 30000, 0);
     // 合并超时 signal 与外部 signal
     const signals: AbortSignal[] = [AbortSignal.timeout(timeoutMs)];
     if (signal) signals.push(signal);
@@ -161,7 +164,7 @@ export class HttpLLMClient implements LLMClient {
         return (await resp.json()) as { choices?: { message?: RawAssistantMessage }[]; usage?: RawUsage };
       },
       {
-        retries: Number(env('LOOP_LLM_RETRIES', '3')) || 3,
+        retries: envNumber('LOOP_LLM_RETRIES', 3, 0),
         retryOn: (e) => this.isRetryable(e),
       },
     );
@@ -214,7 +217,7 @@ export class HttpLLMClient implements LLMClient {
         }
       },
       {
-        retries: Number(env('LOOP_LLM_RETRIES', '3')) || 3,
+        retries: envNumber('LOOP_LLM_RETRIES', 3, 0),
         // 流式重试风险：已推送的 token 会重复。这里仍重试网络层错误（连接失败、5xx），
         // 但若已开始推送内容（onToken 已调用），放弃重试以避免重复输出。
         retryOn: (e) => this.isRetryable(e),

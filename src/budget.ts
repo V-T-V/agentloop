@@ -14,7 +14,7 @@
  * 零依赖，纯内存状态，可序列化（供 checkpoint 持久化累计值）。
  */
 
-import { env } from './env.ts';
+import { env, envNumber } from './env.ts';
 import type { TokenUsage } from './types.ts';
 
 /** 预算配置：控制长任务的 token/费用上限 */
@@ -31,14 +31,21 @@ export interface BudgetConfig {
   onBudgetWarning?: (info: { spent: number; limit: number; pct: number; estimatedCost: number }) => void;
 }
 
-/** 从环境变量加载预算配置；未配置则返回 null（禁用预算控制） */
+/**
+ * 从环境变量加载预算配置；未配置则返回 null（禁用预算控制）。
+ *
+ * 用 envNumber 替代 Number(env)||d：后者会把合法的 0 吞掉。
+ * - maxTotalTokens: 0/未设/非数字 → 返回 null（禁用预算）
+ * - warningThreshold: envNumber 钳制到 [0,1]；0 表示「一花费就预警」（合法边缘配置）
+ * - costPerKToken: 0 → undefined（不计费，仅 token 限额）
+ */
 export function loadBudgetConfig(): BudgetConfig | null {
-  const maxTokens = Number(env('LOOP_COST_BUDGET_TOKENS', '0'));
-  if (!maxTokens || maxTokens <= 0) return null;
+  const maxTokens = envNumber('LOOP_COST_BUDGET_TOKENS', 0);
+  if (maxTokens <= 0) return null;
   return {
     maxTotalTokens: maxTokens,
-    costPerKToken: Number(env('LOOP_COST_BUDGET_PER_K', '0')) || undefined,
-    warningThreshold: Number(env('LOOP_COST_BUDGET_WARNING', '0.8')) || 0.8,
+    costPerKToken: envNumber('LOOP_COST_BUDGET_PER_K', 0) || undefined,
+    warningThreshold: envNumber('LOOP_COST_BUDGET_WARNING', 0.8, 0, 1),
   };
 }
 
