@@ -108,6 +108,56 @@ test('loadCompactConfig：从环境变量读取（带默认）', () => {
   assert.ok(c.recentWindow >= 0);
 });
 
+test('loadCompactConfig：threshold=0 被正确保留（R5-D6 修复 Number||d 吞 0）', () => {
+  // 旧实现 Number(env||'0') || 0.85 = 0 || 0.85 = 0.85，把合法的 0 吞掉。
+  // threshold=0 的语义是「token 占比永不触发压缩」，是合法配置。
+  const orig = process.env.LOOP_COMPACT_THRESHOLD;
+  process.env.LOOP_COMPACT_THRESHOLD = '0';
+  try {
+    const c = loadCompactConfig();
+    assert.equal(c.threshold, 0, 'threshold=0 应被保留而非回退到 0.85');
+  } finally {
+    if (orig === undefined) delete process.env.LOOP_COMPACT_THRESHOLD;
+    else process.env.LOOP_COMPACT_THRESHOLD = orig;
+  }
+});
+
+test('loadCompactConfig：recentWindow=0 被正确保留', () => {
+  const orig = process.env.LOOP_COMPACT_RECENT;
+  process.env.LOOP_COMPACT_RECENT = '0';
+  try {
+    const c = loadCompactConfig();
+    assert.equal(c.recentWindow, 0, 'recentWindow=0（压缩时不保留最近窗口）应被保留');
+  } finally {
+    if (orig === undefined) delete process.env.LOOP_COMPACT_RECENT;
+    else process.env.LOOP_COMPACT_RECENT = orig;
+  }
+});
+
+test('loadCompactConfig：非数字回退默认（不抛错）', () => {
+  const orig = process.env.LOOP_TOKEN_BUDGET;
+  process.env.LOOP_TOKEN_BUDGET = 'not-a-number';
+  try {
+    const c = loadCompactConfig();
+    assert.equal(c.tokenBudget, 120000, '非数字回退默认 120000');
+  } finally {
+    if (orig === undefined) delete process.env.LOOP_TOKEN_BUDGET;
+    else process.env.LOOP_TOKEN_BUDGET = orig;
+  }
+});
+
+test('loadCompactConfig：threshold>1 钳制到 1', () => {
+  const orig = process.env.LOOP_COMPACT_THRESHOLD;
+  process.env.LOOP_COMPACT_THRESHOLD = '1.5';
+  try {
+    const c = loadCompactConfig();
+    assert.equal(c.threshold, 1, 'threshold 钳制到上限 1');
+  } finally {
+    if (orig === undefined) delete process.env.LOOP_COMPACT_THRESHOLD;
+    else process.env.LOOP_COMPACT_THRESHOLD = orig;
+  }
+});
+
 test('currentTokens：返回正数', () => {
   const m = filledMemory(5);
   assert.ok(currentTokens(m) > 0);

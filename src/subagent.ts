@@ -14,7 +14,7 @@
  * 防止子 agent 无限递归 delegate 把栈/成本打爆。
  */
 
-import { env } from './env.ts';
+import { env, envInt } from './env.ts';
 import { fanOut } from './fanout.ts';
 import { runLoop } from './loop.ts';
 import type { Tracer } from './trace.ts';
@@ -38,10 +38,12 @@ function resolveSubMaxSteps(): number {
   // 默认 8：经验证，子 agent 需「调 1+ 工具 + 读结果 + 总结」至少 3-4 步，
   // 若涉及多次工具调用（如逐步计算）会更多。4 步过紧会导致子任务退化为主 agent 手动补救
   // （见全梯度任务 A 的 judge 诊断）。8 步给子任务留足空间，又不过度消耗 token。
-  return Number(env('LOOP_SUBAGENT_MAX_STEPS', '8')) || 8;
+  // 用 envInt 而非 Number(env)||8：后者会把合法的 0（=子 agent 立即停止）当 falsy 吞掉。
+  return envInt('LOOP_SUBAGENT_MAX_STEPS', 8, 1);
 }
 function resolveSubMaxDepth(): number {
-  return Number(env('LOOP_SUBAGENT_MAX_DEPTH', '3')) || 3;
+  // maxDepth=0 表示禁止子 agent 再 delegate（叶子节点）；envInt 正确保留 0。
+  return envInt('LOOP_SUBAGENT_MAX_DEPTH', 3, 0);
 }
 
 /** 子 agent 的系统提示模板 */

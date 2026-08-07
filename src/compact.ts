@@ -18,7 +18,7 @@
  * 设计为「可关闭 + 离线可用」：未配置时不触发；StubLLM 也能正常摘要。
  */
 
-import { env } from './env.ts';
+import { env, envInt, envNumber } from './env.ts';
 import { Memory } from './memory.ts';
 import { extractText } from './multimodal.ts';
 import { estimateMemoryTokens } from './tokens.ts';
@@ -35,13 +35,19 @@ export interface CompactConfig {
   recentWindow: number;
 }
 
-/** 从环境变量读取压缩配置（带默认值） */
+/**
+ * 从环境变量读取压缩配置（带默认值）。
+ *
+ * 使用 envNumber/envInt 而非 `Number(env(...)) || default`——后者会把合法的 0
+ * 当 falsy 吞掉（例如想设 LOOP_COMPACT_THRESHOLD=0 表示「token 占比永不触发」时，
+ * 旧实现静默回退到 0.85）。envNumber 正确保留 0，并对范围做钳制。
+ */
 export function loadCompactConfig(): CompactConfig {
   return {
-    tokenBudget: Number(env('LOOP_TOKEN_BUDGET', '120000')) || 120000,
-    threshold: Number(env('LOOP_COMPACT_THRESHOLD', '0.85')) || 0.85,
-    maxMessages: Number(env('LOOP_COMPACT_MAX_MESSAGES', '60')) || 60,
-    recentWindow: Number(env('LOOP_COMPACT_RECENT', '6')) || 6,
+    tokenBudget: envInt('LOOP_TOKEN_BUDGET', 120000, 1),
+    threshold: envNumber('LOOP_COMPACT_THRESHOLD', 0.85, 0, 1),
+    maxMessages: envInt('LOOP_COMPACT_MAX_MESSAGES', 60, 1),
+    recentWindow: envInt('LOOP_COMPACT_RECENT', 6, 0),
   };
 }
 
