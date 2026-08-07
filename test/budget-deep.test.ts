@@ -17,7 +17,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { BudgetGuard, renderBudget, loadBudgetConfig, type BudgetConfig } from '../src/budget.ts';
+import { BudgetGuard, renderBudget, loadBudgetConfig } from '../src/budget.ts';
 import type { TokenUsage } from '../src/types.ts';
 
 function mkUsage(total: number): TokenUsage {

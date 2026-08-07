@@ -19,7 +19,6 @@ import {
   makeMemory,
   stubLLM,
   runAllBenchmarks,
-  type BenchmarkResult,
 } from '../src/bench.ts';
 import { estimateTokens } from '../src/tokens.ts';
 import { runLoop } from '../src/loop.ts';

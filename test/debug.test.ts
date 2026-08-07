@@ -18,10 +18,9 @@ import {
   renderEventTimeline,
   renderTimingDiagram,
   buildDebugBundle,
-  type StateSnapshot,
   type EventLog,
 } from '../src/debug.ts';
-import { Tracer, type Span } from '../src/trace.ts';
+import { Tracer } from '../src/trace.ts';
 import type { LoopEvent, Message, TokenUsage } from '../src/types.ts';
 
 const U: TokenUsage = { promptTokens: 10, completionTokens: 5, totalTokens: 15 };

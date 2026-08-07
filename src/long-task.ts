@@ -100,12 +100,20 @@ interface TaskResult {
   finalAnswer: string;
 }
 
-/** 结果目录：可通过 LOOP_RESULTS_DIR 环境变量覆盖（测试隔离用），默认 .agentloop/long-task-results */
-const RESULTS_DIR = process.env.LOOP_RESULTS_DIR?.trim() || '.agentloop/long-task-results';
+/**
+ * 结果目录：可通过 LOOP_RESULTS_DIR 环境变量覆盖（测试隔离用），默认 .agentloop/long-task-results
+ *
+ * 注意：必须在「读取时」求值（而非模块加载时），否则测试在 import 之后才设置
+ * LOOP_RESULTS_DIR 的写入无法生效——这是 R5-D1 修复的真实 bug
+ * （iterative.test.ts 曾因此持续失败：模块加载时 env 为空，结果被写入默认目录）。
+ */
+function getResultsDir(): string {
+  return process.env.LOOP_RESULTS_DIR?.trim() || '.agentloop/long-task-results';
+}
 
 /** 结果目录：每个任务一个子目录，存阶段产出 */
 function taskResultsDir(taskId: string): string {
-  return join(RESULTS_DIR, taskId);
+  return join(getResultsDir(), taskId);
 }
 
 /** 渲染带变量替换的 prompt（{{prevOutput}} → 上一阶段答案） */
@@ -581,7 +589,7 @@ export async function runIterativeLoop(spec: IterativeTaskSpec): Promise<void> {
 
 /** 列出所有阶段结果（诊断用） */
 export async function listResults(taskId?: string): Promise<void> {
-  const base = RESULTS_DIR;
+  const base = getResultsDir();
   if (!existsSync(base)) {
     console.log('（暂无长任务结果）');
     return;

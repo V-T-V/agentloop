@@ -14,7 +14,7 @@
  * 零依赖，纯内存状态，可序列化（供 checkpoint 持久化累计值）。
  */
 
-import { env, envNumber } from './env.ts';
+import { envNumber } from './env.ts';
 import type { TokenUsage } from './types.ts';
 
 /** 预算配置：控制长任务的 token/费用上限 */

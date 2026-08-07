@@ -18,7 +18,7 @@
  * 设计为「可关闭 + 离线可用」：未配置时不触发；StubLLM 也能正常摘要。
  */
 
-import { env, envInt, envNumber } from './env.ts';
+import { envInt, envNumber } from './env.ts';
 import { Memory } from './memory.ts';
 import { extractText } from './multimodal.ts';
 import { estimateMemoryTokens } from './tokens.ts';

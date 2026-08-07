@@ -10,7 +10,7 @@
  * 零依赖，基于 Promise 队列实现异步信号量。
  */
 
-import { env, envInt } from './env.ts';
+import { envInt } from './env.ts';
 
 /** 释放函数：调用后归还一个许可 */
 type Release = () => void;

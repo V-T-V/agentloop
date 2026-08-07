@@ -24,7 +24,7 @@ import { Memory } from './memory.ts';
 import { StreamAggregator } from './streaming.ts';
 import { makeCheckpoint } from './checkpoint.ts';
 import { runLoop } from './loop.ts';
-import type { ChatResult, LLMClient, Message, TokenUsage } from './types.ts';
+import type { ChatResult, LLMClient, TokenUsage } from './types.ts';
 
 /** 单次基准测试结果 */
 export interface BenchmarkResult {

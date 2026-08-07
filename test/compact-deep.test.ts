@@ -23,7 +23,7 @@ import {
   currentTokens,
   type CompactConfig,
 } from '../src/compact.ts';
-import type { ChatResult, LLMClient, Message } from '../src/types.ts';
+import type { ChatResult, LLMClient } from '../src/types.ts';
 import { estimateMemoryTokens } from '../src/tokens.ts';
 
 /** 按脚本返回摘要的假 LLM（每次 chat 返回脚本下一项） */
