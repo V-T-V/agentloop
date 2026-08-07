@@ -13,7 +13,7 @@
 ## 当前情况（Status）
 **功能完整，可作为稳定底座复用。** **51 个 TS 源文件、44 个测试文件、718 个测试用例、零运行时依赖**。
 
-### 深度推进记录（deep-r1 ~ deep-r8）
+### 深度推进记录（deep-r1 ~ deep-r8 / R5 进行中）
 - **r1**: 基线扫描 632 用例确认 + 读 AGENTS.md
 - **r2-r3**: 补 mcp/registry.ts 独立测试 16 用例（findMcpConfig/loadMcpConfig/loadMcpFromConfig 边界）
 - **r4**: 补 errors.ts 独立测试 14 用例（LlmHttpError/withRetry/classify）
@@ -21,6 +21,23 @@
 - **r6**: **修 parseSSELine 不映射 snake_case tool_calls bug**（streaming.ts normalizeToolCalls，真实 OpenAI/GLM SSE 现可正确提取）+ 3 用例
 - **r7**: 修 iterative.test flaky 隔离（LOOP_RESULTS_DIR 环境变量 + 独立临时目录）
 - **r8**: env.ts 单元测试 15 用例（parseLine 引号/注释/空值/等号边界 + env 读取/fallback）
+
+### 第五轮深化基线（R5-D1，2026-08-06）
+
+**测试规模**：716 用例 / 47 测试文件（`npm test`）。
+
+**R5 聚焦缺口清单**（按"有源文件但无配对测试文件"排序，纯逻辑优先补测）：
+
+| 模块 | 源文件 | 行数 | 现状 | R5 目标 |
+|------|--------|------|------|---------|
+| **MCP 协议层** | `mcp/protocol.ts` | 205 | **完全无独立测试**，仅 mcp.test.ts happy-path | D2-D3：JSON-RPC 请求/响应/通知构造、批量、错误码、id 类型 |
+| **MCP 适配层** | `mcp/adapter.ts` | 133 | **完全无独立测试** | D4：MCP 工具→LoopTool 适配、参数 schema 透传、资源/提示枚举 |
+| **存储文件层** | `storage-file.ts` | 130 | **完全无独立测试**，仅 storage.test.ts 间接 | D5：原子写/读/锁/并发竞争/坏 JSON 恢复 |
+| **运行时配置** | `runtime.ts` | 48 | 无独立测试 | D8 错误路径：默认值/环境覆盖/非法值兜底 |
+
+**flaky 测试分析**（R5-D1 确认，D2 修复）：
+- `retry.test.ts「退避时长封顶于 maxDelayMs」`：用 wall-clock 断言 `elapsed < 400ms`，在全量并发跑下因系统负载超出（实测 559ms）。**断言意图是验证退避封顶**——未封顶应为 `sum(1000*2^k) ≈ 31s`，封顶后为 5×50ms。修复方向：放宽上界到 2000ms（保留「远小于未封顶」的判别力），或改用注入时钟。
+- `iterative.test.ts`：Node test-runner IPC 序列化错误 `Unable to deserialize cloned data`，是 runner 在并发下的已知问题，非测试逻辑缺陷；隔离单跑稳定通过。修复方向：将本文件标记为 `concurrency: 1`（文件级串行）。
 
 PRODUCT.md 所列能力**全部真实落地**（均有源文件 + 导出符号 + 测试）：
 
