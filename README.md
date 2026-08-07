@@ -190,6 +190,8 @@ run（root span）
 | `LOOP_TRACE_DIR` | `.agentloop/traces` | 轨迹存储目录 |
 | `LOOP_EVAL_MODEL` | （空=复用主模型） | LLM-as-judge 评估用的模型 |
 
+> **关于 0 值与数值解析**（R5 改进）：数值类变量用 `envNumber`/`envInt` 解析（`src/env.ts`），合法的 `0` 会被保留而非吞掉——例如 `LOOP_COMPACT_THRESHOLD=0` 表示「token 占比永不触发压缩」，`LOOP_LLM_RETRIES=0` 表示「不重试（仅一次尝试）」，`LOOP_LLM_TEMPERATURE=0` 表示「完全确定性输出」。非法值（非数字 / `NaN` / `Infinity`）回退到默认；占比类变量（threshold / warningThreshold）自动钳制到 `[0,1]`，温度钳制到 `[0,2]`，并发数钳制到 `>=1`。
+
 ## 目录结构
 
 ```
@@ -226,7 +228,7 @@ test/                630 测试覆盖全部模块（含 R2-R8 深层边界测试
 ## 开发
 
 ```bash
-npm test            # 全部测试（node:test，41 测试文件 / 630 用例）
+npm test            # 全部测试（node:test，51 测试文件 / 845 用例）
 npm run type-check  # TS 类型检查
 npm run lint        # ESLint
 npm run product:check # 产品化门禁（7 个 gate）

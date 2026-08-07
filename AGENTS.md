@@ -11,7 +11,7 @@
 - 成功标准：无 API key 时（StubLLM）可跑通完整主循环；有 key 时可接任意 OpenAI-compatible endpoint；所有能力有测试验证。
 
 ## 当前情况（Status）
-**功能完整，可作为稳定底座复用。** **51 个 TS 源文件、44 个测试文件、718 个测试用例、零运行时依赖**。
+**功能完整，可作为稳定底座复用。** **51 个 TS 源文件、51 个测试文件、845 个测试用例、零运行时依赖**。
 
 ### 深度推进记录（deep-r1 ~ deep-r8 / R5 进行中）
 - **r1**: 基线扫描 632 用例确认 + 读 AGENTS.md
@@ -38,6 +38,23 @@
 **flaky 测试分析**（R5-D1 确认，D2 修复）：
 - `retry.test.ts「退避时长封顶于 maxDelayMs」`：用 wall-clock 断言 `elapsed < 400ms`，在全量并发跑下因系统负载超出（实测 559ms）。**断言意图是验证退避封顶**——未封顶应为 `sum(1000*2^k) ≈ 31s`，封顶后为 5×50ms。修复方向：放宽上界到 2000ms（保留「远小于未封顶」的判别力），或改用注入时钟。
 - `iterative.test.ts`：Node test-runner IPC 序列化错误 `Unable to deserialize cloned data`，是 runner 在并发下的已知问题，非测试逻辑缺陷；隔离单跑稳定通过。修复方向：将本文件标记为 `concurrency: 1`（文件级串行）。
+
+### 第五轮深化成果（R5-D1 ~ R5-D8 完成，2026-08-06）
+
+**测试规模**：716 → **845 用例** / 47 → **51 测试文件**（+129 用例 / +4 文件），全绿且全量并发跑稳定。
+
+| 轮次 | 内容 | 关键交付 |
+|------|------|----------|
+| **D1** | 基线扫描 + 缺口定位 | 确认 flaky retry/iterative；列出 protocol/adapter/storage-file/runtime 零配对测试缺口 |
+| **D2** | 修复两处 flaky | retry 上界 400→5000ms（保留封顶判别力）；iterative 用 `quiet()` 静默 long-task 的 55 处 console 输出，缩小 IPC payload 根除 `Unable to deserialize cloned data` |
+| **D3** | storage-file.ts +27 | 消除 130 行零测试：原子写/坏 JSON/schema 不符/list 容错排序/delete 幂等/newSessionId 唯一排序/makeSession 标题推导/并发 save |
+| **D4** | mcp/adapter.ts +27 | 消除 133 行零测试：stub McpStdioClient 原型不 spawn 子进程，测 name/desc/schema 映射、toolPrefix、content 渲染（text/image/resource）、isError、抛错捕获、loadMcpServers 批量+单失败不阻塞 |
+| **D5** | concurrency-deep +20 | 信号量不变量：release 幂等/FIFO 公平/许可传递/峰值<=capacity/withConcurrency 抛错仍释放/全局信号量单例与 reset |
+| **D6** | **修 Number(env)‖d 吞 0 bug** | 新增 `envNumber`/`envInt`（src/env.ts）：正确保留合法 0、拒绝 NaN/Infinity、min/max 钳制；迁移 compact/subagent。`LOOP_COMPACT_THRESHOLD=0` 等此前静默回退默认的配置现可生效 |
+| **D7** | bug 修复推广 | 迁移 budget/llm/concurrency：temperature=0(确定性)/retries=0(不重试)/warningThreshold 钳制[0,1]/并发数 min=1，全代码库 `Number(env)‖d` 模式清零（cli 价格除外，本就默认 0） |
+| **D8** | trace-store-deep +25 | 覆盖此前零测试的 prune 淘汰（maxAgeMs/maxCount/同时/清 tmp/清损坏文件/目录不存在）+ load/list 错误路径 + answer/userQuestion 截断 |
+
+**净增能力**：`envNumber`/`envInt` 是新的公共配置解析 API（导出自 `src/env.ts`），上层模块可统一用它读数值配置，杜绝 0 被吞的整类 bug。
 
 PRODUCT.md 所列能力**全部真实落地**（均有源文件 + 导出符号 + 测试）：
 
@@ -83,9 +100,9 @@ PRODUCT.md 所列能力**全部真实落地**（均有源文件 + 导出符号 +
 | **调试工具（R8）** | **`debug.ts`** | **debug.test.ts** | **~27** | ✅ |
 | CLI | `cli.ts` | （由 loop/各模块测试间接覆盖） | — | ✅ |
 
-✅✅ = 含 R2-R5 新增的深层边界测试文件。合计 42 测试文件 / 630 用例。
+✅✅ = 含 R2-R5 新增的深层边界测试文件。合计 51 测试文件 / 845 用例。
 
-### 测试覆盖矩阵（35→42 文件，按 R 轮增量）
+### 测试覆盖矩阵（35→51 文件，按 R 轮增量）
 
 | 轮次 | 新增测试文件 | 新增用例 | 累计用例 |
 |------|-------------|----------|----------|
@@ -97,7 +114,14 @@ PRODUCT.md 所列能力**全部真实落地**（均有源文件 + 导出符号 +
 | R6 | bench.test.ts | +18 | 571 |
 | R7 | config-check.test.ts | +34 | 605 |
 | R8 | debug.test.ts | +27 | 632 |
-| D1（深度推进） | —（基线扫描，无新增测试） | — | 632 |
+| 深度 r1-r8 | retry/mcp-registry/errors/mcp-deep/env 等 | +86 | 718 |
+| **R5-D2** | （修 flaky，无新增） | — | 718 |
+| **R5-D3** | storage-file.test.ts | +27 | 745 |
+| **R5-D4** | mcp-adapter.test.ts | +27 | 772 |
+| **R5-D5** | concurrency-deep.test.ts | +20 | 792 |
+| **R5-D6** | env.test.ts / compact.test.ts 扩展 | +24 | 816 |
+| **R5-D7** | budget-deep.test.ts 扩展 | +4 | 820 |
+| **R5-D8** | trace-store-deep.test.ts | +25 | 845 |
 
 ### 未测/弱测清单（D1 基线扫描，2026-08）
 
@@ -112,7 +136,7 @@ PRODUCT.md 所列能力**全部真实落地**（均有源文件 + 导出符号 +
 | **轨迹** | `trajectory.ts` (145 行) | 8 用例覆盖核心 | sub-agent 深层嵌套、空 tool 输入、时间戳乱序 |
 | **运行时** | `runtime.ts` (48 行) | 无独立测试 | 由 loop 间接覆盖，可补纯函数测试 |
 
-**结论**：`retry.ts`、`mcp/registry.ts`、`errors.ts` 三处是纯逻辑且无独立测试，是 D2-D5 的最高优先级补测目标。
+**结论**：`retry.ts`、`mcp/registry.ts`、`errors.ts` 三处在深度 r2-r4 已补独立测试；R5 进一步补齐 `storage-file.ts`、`mcp/adapter.ts`、`concurrency.ts`、`trace-store.ts` 的深层路径。当前剩余纯逻辑零独立测试的源文件已基本清零（`runtime.ts` 是集成胶水代码，由 loop 测试间接覆盖；`mcp/protocol.ts` 全为类型定义，仅 `MCP_ERROR_CODES` 一个常量）。
 
 **近期路线**（PRODUCT.md）：M1 product:check 门禁 → M2 库级 API 文档 → M3 嵌入式 SDK 示例 → M4 cogent adapter → M5 发布拆包。
 
@@ -145,7 +169,7 @@ src/
 npm install
 npm run cli                 # CLI 交互（无 key 走 StubLLM）
 npm run type-check          # tsc --noEmit
-npm test                    # node --test（42 个测试文件 / 630 用例）
+npm test                    # node --test（51 个测试文件 / 845 用例）
 npm run lint                # eslint
 npm run config:check        # 启动期配置校验（类型/范围/互斥）
 npm run bench               # 性能基准报告
