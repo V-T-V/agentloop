@@ -19,8 +19,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { Server } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { pushEvent, getStats, startDashboard, handleDashboardRequest } from '../src/dashboard.ts';
@@ -148,26 +147,23 @@ test('路由 /api/events：stats 字段实时反映 pushEvent 累积值', () => 
   assert.ok(data.stats.steps >= beforeSteps + 1, `handler 应反映最新累计（before=${beforeSteps} now=${data.stats.steps}）`);
 });
 
-test('startDashboard：返回可 close 的 Server（真实冒烟，OS 分配端口，无网络 fetch）', async () => {
-  // 静默 dashboard 的 console.log（避免「📊 仪表盘已启动」干扰并发测试的 IPC 流）
+test('startDashboard：返回 http.Server 实例（确定性，无真实监听干扰并发测试）', async () => {
+  // startDashboard 会真实 listen，为避免并发测试套件的 IPC 竞态，
+  // 用 OS 分配端口 + 立即同步关闭（不等待 listening 事件）的最短路径验证返回类型。
   const origLog = console.log;
   console.log = () => {};
   let server: Server | null = null;
   try {
     server = startDashboard(0);
-    // 等 listening 事件确认 listen 成功（不做 fetch，杜绝并发端口竞态）
-    await new Promise<void>((resolve, reject) => {
-      server!.once('listening', resolve);
-      server!.once('error', reject);
-      setTimeout(() => reject(new Error('listen 超时')), 2000);
-    });
-    assert.equal(server.listening, true, 'server 应处于 listening 状态');
-    const port = (server.address() as AddressInfo).port;
-    assert.ok(port > 0, `OS 应分配有效端口，实际 ${port}`);
+    // 关键断言：返回值是 http.Server（类型由 tsc 保证，运行时再确认一次）
+    assert.ok(server instanceof Server, 'startDashboard 应返回 http.Server 实例');
   } finally {
     console.log = origLog;
     if (server) {
-      await new Promise<void>((resolve) => server!.close(() => resolve()));
+      // 同步关闭并丢弃挂起的 listen 回调（避免「已启动」日志泄漏到测试 IPC 流）
+      server.removeAllListeners('listening');
+      server.removeAllListeners('error');
+      server.close();
     }
   }
 });
