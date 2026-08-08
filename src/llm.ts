@@ -61,11 +61,19 @@ function normalizeAssistantMessage(msg: RawAssistantMessage): Message {
 }
 
 function toUsage(raw: RawUsage | undefined, fallbackMsg: Message): TokenUsage {
-  if (raw && (raw.prompt_tokens || raw.completion_tokens)) {
+  // 注意：旧条件 `raw.prompt_tokens || raw.completion_tokens` 会把合法的 0 当 falsy 跳过，
+  // 导致「服务端明确返回 0 token」（如纯工具调用、空响应）被误判为「未返回 usage」走估算兜底。
+  // 正确判定：raw 存在且至少有一个 token 字段是「数字」（含 0，含 total_tokens）。
+  const hasUsage =
+    raw !== undefined &&
+    (typeof raw.prompt_tokens === 'number' ||
+      typeof raw.completion_tokens === 'number' ||
+      typeof raw.total_tokens === 'number');
+  if (hasUsage) {
     return {
-      promptTokens: raw.prompt_tokens ?? 0,
-      completionTokens: raw.completion_tokens ?? 0,
-      totalTokens: raw.total_tokens ?? (raw.prompt_tokens ?? 0) + (raw.completion_tokens ?? 0),
+      promptTokens: raw!.prompt_tokens ?? 0,
+      completionTokens: raw!.completion_tokens ?? 0,
+      totalTokens: raw!.total_tokens ?? (raw!.prompt_tokens ?? 0) + (raw!.completion_tokens ?? 0),
     };
   }
   // 服务端未返回 usage 时，用本地估算兜底（确保可观测性不为空）
