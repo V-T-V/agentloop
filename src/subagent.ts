@@ -14,7 +14,7 @@
  * 防止子 agent 无限递归 delegate 把栈/成本打爆。
  */
 
-import { env, envInt } from './env.ts';
+import { envInt } from './env.ts';
 import { fanOut } from './fanout.ts';
 import { runLoop } from './loop.ts';
 import type { Tracer } from './trace.ts';
@@ -44,6 +44,23 @@ function resolveSubMaxSteps(): number {
 function resolveSubMaxDepth(): number {
   // maxDepth=0 表示禁止子 agent 再 delegate（叶子节点）；envInt 正确保留 0。
   return envInt('LOOP_SUBAGENT_MAX_DEPTH', 3, 0);
+}
+
+/**
+ * 解析 delegate_parallel 的扇出选项（超时 + 并发上限）。
+ *
+ * 用 envInt 而非旧写法 `Number(env)||default`——后者会把合法的 0 当 falsy 吞掉：
+ *   - LOOP_SUBAGENT_TIMEOUT_MS=0 表示「不超时」（与 fanout 的 timeoutMs<=0 语义一致），
+ *     旧实现会把它错改成默认 30000，导致用户无法禁用子 agent 超时。
+ *   - LOOP_SUBAGENT_MAX_CONCURRENT=0 表示「不限制并发」（fanout 的 maxConcurrency<=0 语义）。
+ *
+ * 导出便于单元测试（无需真的扇出子 agent）。
+ */
+export function resolveSubAgentFanoutOptions(): { timeoutMs: number; maxConcurrency: number } {
+  return {
+    timeoutMs: envInt('LOOP_SUBAGENT_TIMEOUT_MS', 30000, 0),
+    maxConcurrency: envInt('LOOP_SUBAGENT_MAX_CONCURRENT', 0, 0),
+  };
 }
 
 /** 子 agent 的系统提示模板 */
@@ -142,8 +159,7 @@ export function makeSubAgentTools(deps: SubAgentDeps, depth = 1): AnyToolDef[] {
         return { ok: false, output: 'tasks 不能为空' };
       }
       const fanTasks = list.map((t, i) => ({ id: t.id ?? `t${i + 1}`, input: t.task }));
-      const timeoutMs = Number(env('LOOP_SUBAGENT_TIMEOUT_MS', '30000')) || 30000;
-      const maxConcurrency = Number(env('LOOP_SUBAGENT_MAX_CONCURRENT', '0')) || 0;
+      const { timeoutMs, maxConcurrency } = resolveSubAgentFanoutOptions();
       const result = await fanOut(
         fanTasks,
         async (task) => runSubAgent(deps, task.input, depth),
