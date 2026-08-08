@@ -138,6 +138,20 @@ PRODUCT.md 所列能力**全部真实落地**（均有源文件 + 导出符号 +
 
 **结论**：`retry.ts`、`mcp/registry.ts`、`errors.ts` 三处在深度 r2-r4 已补独立测试；R5 进一步补齐 `storage-file.ts`、`mcp/adapter.ts`、`concurrency.ts`、`trace-store.ts` 的深层路径。当前剩余纯逻辑零独立测试的源文件已基本清零（`runtime.ts` 是集成胶水代码，由 loop 测试间接覆盖；`mcp/protocol.ts` 全为类型定义，仅 `MCP_ERROR_CODES` 一个常量）。
 
+### R10-D1 基线扫描（2026-08-06，845/845 绿）
+
+第十轮起点。基线 `npm test`：845 通过、0 失败、54s。重扫「已配对测试但覆盖率仍偏弱」的源文件（即非零测试，但远未触达核心错误/边界路径）：
+
+| 模块 | 源行数 | 现有用例 | 已测路径 | R10 重点缺口（D2-D5） |
+|------|--------|----------|----------|----------------------|
+| **dashboard.ts** | 172 | 8 | pushEvent 累加（thinking/tool_call/tool_result/usage/error/compact/final/stream_delta）、getStats 差值 | **HTTP 端点 `/` 与 `/api/events` 未测**（startDashboard 完全未触达）；**环形缓冲裁剪**（>500 条 shift）未测；usage 三项分别累加（仅 totalTokens）；final/tool_call 在 summary 模板的渲染分支 |
+| **fanout.ts** | 137 | 6 | 并发、超时、部分失败、全成功 summary、空列表、durationMs | **maxConcurrency 信号量节流**（SerialSemaphore 串行化、防止并发突破上限）；**AbortSignal 传递**（超时后 signal.aborted=true 传给 runner）；**timeoutMs=0 表示不限**；**非 Error 对象抛错**（`e instanceof Error ? e.message : String(e)`）；allSettled 永远 fulfilled 兜底；summary ❌ 分支 |
+| **memory-store.ts** | 235 | 13 | 未知（待 D4 详查） | 错误路径：空文件、坏 JSON、超容量 prune、score 排序、向量维度不匹配；delete/has/get/list 等方法 |
+| **otel.ts** | 204 | 11 | 未知（待 D5 详查） | **toOTLP 结构转换**、**exportTrace HTTP POST 失败/超时/非 2xx**、payload serviceName/attributes 字段、嵌套 span |
+| **multimodal.ts** | 51 | 15 | 全部 5 个 export 都有测试（覆盖良好） | 仅 51 行已基本全覆盖——R10 不再扩，作为「已饱和」对照 |
+
+**结论**：multimodal.ts 已饱和（51 行 / 15 用例），其余 4 模块均有明显深层缺口。R10-D2~D5 按上表补 fanout → dashboard → memory-store → otel 的深层测试；D6-D7 加新能力/修 bug；D8 错误路径加固；D9 文档；D10 回归推送。
+
 **近期路线**（PRODUCT.md）：M1 product:check 门禁 → M2 库级 API 文档 → M3 嵌入式 SDK 示例 → M4 cogent adapter → M5 发布拆包。
 
 ### 下一步扩展方向
