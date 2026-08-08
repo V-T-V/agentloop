@@ -11,7 +11,7 @@
 - 成功标准：无 API key 时（StubLLM）可跑通完整主循环；有 key 时可接任意 OpenAI-compatible endpoint；所有能力有测试验证。
 
 ## 当前情况（Status）
-**功能完整，可作为稳定底座复用。** **51 个 TS 源文件、51 个测试文件、845 个测试用例、零运行时依赖**。
+**功能完整，可作为稳定底座复用。** **107 个 TS 源文件、59 个测试文件、938 个测试用例、零运行时依赖**。
 
 ### 深度推进记录（deep-r1 ~ deep-r8 / R5 进行中）
 - **r1**: 基线扫描 632 用例确认 + 读 AGENTS.md
@@ -100,9 +100,9 @@ PRODUCT.md 所列能力**全部真实落地**（均有源文件 + 导出符号 +
 | **调试工具（R8）** | **`debug.ts`** | **debug.test.ts** | **~27** | ✅ |
 | CLI | `cli.ts` | （由 loop/各模块测试间接覆盖） | — | ✅ |
 
-✅✅ = 含 R2-R5 新增的深层边界测试文件。合计 51 测试文件 / 845 用例。
+✅✅ = 含 R2-R5 新增的深层边界测试文件。合计 59 测试文件 / 938 用例。
 
-### 测试覆盖矩阵（35→51 文件，按 R 轮增量）
+### 测试覆盖矩阵（35→59 文件，按 R 轮增量）
 
 | 轮次 | 新增测试文件 | 新增用例 | 累计用例 |
 |------|-------------|----------|----------|
@@ -122,6 +122,28 @@ PRODUCT.md 所列能力**全部真实落地**（均有源文件 + 导出符号 +
 | **R5-D6** | env.test.ts / compact.test.ts 扩展 | +24 | 816 |
 | **R5-D7** | budget-deep.test.ts 扩展 | +4 | 820 |
 | **R5-D8** | trace-store-deep.test.ts | +25 | 845 |
+| **R10-D2** | fanout-deep.test.ts | +14 | 859 |
+| **R10-D3** | dashboard-deep.test.ts（+ 重构 handleDashboardRequest） | +10 | 869 |
+| **R10-D4** | memory-store-deep.test.ts | +20 | 889 |
+| **R10-D5** | otel-deep.test.ts（+ 根除并发 flaky） | +24 | 913 |
+| **R10-D6** | subagent-deep.test.ts（修 Number(env)‖d 吞 0 bug） | +7 | 921 |
+| **R10-D7** | llm-deep.test.ts（修 toUsage truthy 吞 0 bug） | +7 | 928 |
+| **R10-D8** | tools-registry-load-all.test.ts | +10 | 938 |
+
+### R10 完成表（845 → 938 用例，+93）
+
+| 日 | 主题 | 成果 |
+|----|------|------|
+| **D1** | 基线扫描 + 缺口定位 | 845/845 绿；列出 dashboard/fanout/memory-store/otel/multimodal 覆盖率缺口（multimodal 已饱和） |
+| **D2** | fanout 深层 | +14：maxConcurrency 信号量节流 / AbortSignal 同步 abort / timeoutMs=0 / 非 Error 抛错 String(e) / 默认 options / summary 标记 / stress / 泛型 TInput |
+| **D3** | dashboard 深层 + 重构 | +10：抽出纯函数 handleDashboardRequest（路由与服务器解耦，确定性单测）+ startDashboard 返回 http.Server（向后兼容）；HTTP 端点 / 环形缓冲裁剪 / usage 三项累加 |
+| **D4** | memory-store 深层 | +20：addTyped / searchRelevant minConfidence / updateConfidence clamp[0,1] / getLessons / 持久化往返保真 / 损坏文件(非数组/错误 schema/坏 JSON)恢复 / 停用词 / 余弦相似度边界 |
+| **D5** | otel 深层 + 根除 flaky | +24：toAnyValue 全类型映射 / 未结束 span / 4 层嵌套 flatten / llm 无 usage / tool 无 tool 属性 / spanId 确定性+唯一性 / kind 映射 / exportTrace 错误路径；彻底根除 dashboard 真实 server 冒烟的并发 deserialize flaky |
+| **D6** | **修 bug** subagent.ts | 修 `Number(env('LOOP_SUBAGENT_TIMEOUT_MS','30000'))‖30000` 吞掉合法 0（=不超时）的 bug；抽出可测函数 resolveSubAgentFanoutOptions（envInt 正确保留 0）；+7 回归 |
+| **D7** | **修 bug** llm.ts | 修 toUsage 用 `raw.prompt_tokens ‖ raw.completion_tokens` truthy 判定吞掉合法 0（服务端明确返回 0 token 被误判走估算）的 bug；改 typeof==='number' 判定（含 0/含 total_tokens）；+7 回归 |
+| **D8** | 错误路径 tools/ | +10：registry.ts（defineTool/builtinTools/findTool）+ load-all.ts（loadAllTools 无配置返纯内置 / registerCleanup 恰好 +1 exit 监听 / cleanup 幂等）—— 此前两模块无独立测试 |
+| **D9** | 文档同步 | 本表 + 矩阵更新 |
+| **D10** | 全量回归 + 推送 | 938/938 绿 + tsc/lint 通过 + push origin main |
 
 ### 未测/弱测清单（D1 基线扫描，2026-08）
 
@@ -183,7 +205,7 @@ src/
 npm install
 npm run cli                 # CLI 交互（无 key 走 StubLLM）
 npm run type-check          # tsc --noEmit
-npm test                    # node --test（51 个测试文件 / 845 用例）
+npm test                    # node --test（59 个测试文件 / 938 用例）
 npm run lint                # eslint
 npm run config:check        # 启动期配置校验（类型/范围/互斥）
 npm run bench               # 性能基准报告

@@ -228,7 +228,7 @@ test/                630 测试覆盖全部模块（含 R2-R8 深层边界测试
 ## 开发
 
 ```bash
-npm test            # 全部测试（node:test，51 测试文件 / 845 用例）
+npm test            # 全部测试（node:test，59 测试文件 / 938 用例）
 npm run type-check  # TS 类型检查
 npm run lint        # ESLint
 npm run product:check # 产品化门禁（7 个 gate）
