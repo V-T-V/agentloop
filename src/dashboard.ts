@@ -14,7 +14,7 @@
  * 也可被 cli.ts/run-task.ts 集成：启动 dashboard 后把 onEvent 事件转发过来。
  */
 
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse, type Server } from 'node:http';
 import { env } from './env.ts';
 import type { LoopEvent, TokenUsage } from './types.ts';
 
@@ -148,21 +148,38 @@ setInterval(poll, 2000);
 </body>
 </html>`;
 
-/** 启动仪表盘 HTTP 服务器 */
-export function startDashboard(port?: number): void {
+/**
+ * 单个 HTTP 请求的路由处理（纯函数，不依赖网络）。
+ *
+ * 路由：
+ *   GET /api/events → JSON { stats, events }
+ *   其他任意路径    → HTML 页面
+ *
+ * 抽出为独立函数便于单元测试（无需启动真实 TCP 服务器，杜绝端口/并发 flaky）。
+ */
+export function handleDashboardRequest(_req: IncomingMessage, res: ServerResponse): void {
+  if (_req.url === '/api/events') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ stats, events: eventBuffer }));
+  } else {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(HTML_PAGE);
+  }
+}
+
+/**
+ * 启动仪表盘 HTTP 服务器。
+ *
+ * @param port 端口；省略则读 LOOP_DASHBOARD_PORT 环境变量，默认 7788
+ * @returns 已 listen 的 http.Server（调用方可保存以便后续 close() 优雅关闭）
+ */
+export function startDashboard(port?: number): Server {
   const p = port ?? Number(env('LOOP_DASHBOARD_PORT', '7788'));
-  const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-    if (req.url === '/api/events') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ stats, events: eventBuffer }));
-    } else {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(HTML_PAGE);
-    }
-  });
+  const server = createServer(handleDashboardRequest);
   server.listen(p, () => {
     console.log(`📊 仪表盘已启动：http://localhost:${p}`);
   });
+  return server;
 }
 
 // 作为脚本直接运行时启动
